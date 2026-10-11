@@ -83,15 +83,71 @@ def get_row_val(row, keys, fallback_idx=None, default=''):
             return str(val).strip()
     return default
 
+def detect_all_columns(df):
+    """
+    Examines headers AND cell data to accurately map columns:
+    name, mobile, email, designation, organization, gender, category.
+    Handles files with or without Email column, custom headers, or no headers!
+    """
+    col_mapping = {
+        'name': None,
+        'mobile': None,
+        'email': None,
+        'designation': None,
+        'organization': None,
+        'gender': None,
+        'category': None
+    }
+    
+    # 1. Match by headers
+    for col in df.columns:
+        c = str(col).strip().lower().replace(" ", "").replace("_", "").replace(".", "")
+        if any(k in c for k in ['name', 'trainee', 'citizen']) and 'org' not in c and 'desig' not in c:
+            if not col_mapping['name']: col_mapping['name'] = col
+        elif any(k in c for k in ['mobile', 'phone', 'cell', 'contact', 'ఫోన్', 'మొబైల్']):
+            if not col_mapping['mobile']: col_mapping['mobile'] = col
+        elif 'email' in c or 'mail' in c:
+            if not col_mapping['email']: col_mapping['email'] = col
+        elif any(k in c for k in ['designation', 'desig', 'occupation', 'profession', 'job']):
+            if not col_mapping['designation']: col_mapping['designation'] = col
+        elif any(k in c for k in ['organization', 'organ', 'dept', 'gp', 'gram']):
+            if not col_mapping['organization']: col_mapping['organization'] = col
+        elif any(k in c for k in ['gender', 'sex', 'male', 'female']):
+            if not col_mapping['gender']: col_mapping['gender'] = col
+        elif any(k in c for k in ['category', 'caste', 'subcat', 'community']):
+            if not col_mapping['category']: col_mapping['category'] = col
+
+    # 2. Content-based detection for Mobile: find column containing 10-digit numbers!
+    if not col_mapping['mobile']:
+        for col in df.columns:
+            sample = [normalize_mobile_string(v) for v in df[col].dropna().head(10)]
+            valid_mobs = [v for v in sample if len(v) == 10 and v[0] in '6789']
+            if len(valid_mobs) >= 2:
+                col_mapping['mobile'] = col
+                break
+
+    # 3. Content-based detection for Name: text column that isn't numbers
+    if not col_mapping['name']:
+        for col in df.columns:
+            if col == col_mapping['mobile']: continue
+            sample = [str(v).strip() for v in df[col].dropna().head(10)]
+            text_like = [v for v in sample if len(v) > 2 and not any(ch.isdigit() for ch in v)]
+            if len(text_like) >= 2:
+                col_mapping['name'] = col
+                break
+
+    return col_mapping
+
 def find_mobile_column(df):
-    """Smart mobile column detector: handles case-insensitivity, spaces, and naming variations."""
+    """Smart mobile column detector based on detect_all_columns."""
+    mapping = detect_all_columns(df)
+    if mapping['mobile']:
+        return mapping['mobile']
+    # Fallback search
     for col in df.columns:
         c_clean = str(col).strip().lower().replace(" ", "").replace("_", "").replace(".", "")
-        if c_clean in ["mobile", "mobilenumber", "mobileno", "phone", "phonenumber", "cell", "contact", "ఫోన్", "మొబైల్"]:
+        if c_clean in ["mobile", "mobilenumber", "mobileno", "phone", "phonenumber", "cell", "contact"]:
             return col
-    # Fallback to column index 3 (4th column: Name, Email, Mobile...) if available
-    if len(df.columns) > 3:
-        return df.columns[3]
     return df.columns[0]
 
 def normalize_mobile_string(val):
@@ -288,74 +344,72 @@ def run_f8_control_panel(df, gp_name):
             control_win.after(200, check_f8)
             return
 
+        col_map = detect_all_columns(df)
+
         if current_index[0] < len(df):
             index = current_index[0]
             row = df.iloc[index]
             
-            status_label.config(text=f"Processing Record {index + 1}...", fg="#16a34a")
-            control_win.update()
-
-            time.sleep(0.2)
+            time.sleep(0.3)
             
-            def paste_val(text):
-                if text and str(text).strip() != '' and str(text).strip().lower() != 'nan':
+            def paste_val(val):
+                if val is not None and str(val).strip() != '' and str(val).strip().lower() != 'nan':
                     try:
                         control_win.clipboard_clear()
-                        control_win.clipboard_append(str(text).strip())
-                        control_win.update()
+                        control_win.clipboard_append(str(val).strip())
                         pyautogui.hotkey('ctrl', 'v')
                     except Exception:
-                        pyautogui.write(str(text).strip(), interval=0.01)
+                        pyautogui.write(str(val).strip(), interval=0.01)
 
             # 1. Name 
-            name = get_row_val(row, ['Name', 'Trainee Name', 'name', 'Citizen Name'], fallback_idx=1)
-            paste_val(name)
+            name_val = row[col_map['name']] if col_map['name'] else get_row_val(row, ['Name'], fallback_idx=1)
+            paste_val(name_val)
             time.sleep(0.18)
             pyautogui.press('tab')
             
-            # 2. Email (Skip or paste if available)
-            email = get_row_val(row, ['Email', 'Email ID', 'email'], fallback_idx=2)
-            if email and '@' in email:
-                paste_val(email)
+            # 2. Email (Skip or paste if exists)
+            if col_map['email']:
+                email_val = str(row[col_map['email']]).strip()
+                if '@' in email_val:
+                    paste_val(email_val)
             time.sleep(0.15) 
             pyautogui.press('tab')
             
-            # 3. Mobile (Normalized to clean 10 digits)
-            raw_mob = get_row_val(row, ['Mobile No.', 'Mobile No', 'Mobile', 'Phone', 'Phone Number', 'mobileno'], fallback_idx=3)
-            mobile = normalize_mobile_string(raw_mob)
-            paste_val(mobile)
+            # 3. Mobile (Guaranteed 10 digits from mobile column)
+            mob_val = row[col_map['mobile']] if col_map['mobile'] else get_row_val(row, ['Mobile No.', 'Mobile No', 'Mobile'], fallback_idx=2)
+            clean_mob = normalize_mobile_string(mob_val)
+            paste_val(clean_mob)
             time.sleep(0.18)
             pyautogui.press('tab')
             
             # 4. Designation 
-            desig = get_row_val(row, ['Designation', 'desig'], fallback_idx=4, default='Villager')
-            paste_val(desig)
+            desig_val = row[col_map['designation']] if col_map['designation'] else get_row_val(row, ['Designation'], default='Villager')
+            paste_val(desig_val or 'Villager')
             time.sleep(0.18)
             pyautogui.press('tab')
             
             # 5. Organization 
-            org = get_row_val(row, ['Organization', 'org'], fallback_idx=5, default='Gram Panchayat')
-            paste_val(org)
+            org_val = row[col_map['organization']] if col_map['organization'] else get_row_val(row, ['Organization'], default='Gram Panchayat')
+            paste_val(org_val or 'Gram Panchayat')
             time.sleep(0.18)
             pyautogui.press('tab')
             
             # 6. Qualification 
-            qual = get_row_val(row, ['Qualification', 'qual'], default='Not Literate')
-            paste_val(qual)
+            paste_val('Not Literate')
             time.sleep(0.18)
             pyautogui.press('tab')
             
             # 7. Gender 
-            gender = get_row_val(row, ['Gender', 'Sex', 'Main Category'], fallback_idx=6, default='Male')
-            paste_val(gender)
+            gender_val = row[col_map['gender']] if col_map['gender'] else get_row_val(row, ['Gender'], default='Male')
+            paste_val(gender_val or 'Male')
             time.sleep(0.18)
             pyautogui.press('tab')
             
             # 8. Category 
-            cat = get_row_val(row, ['Category', 'Sub Category', 'Community', 'Caste'], fallback_idx=7, default='SC')
-            paste_val(cat)
+            cat_val = row[col_map['category']] if col_map['category'] else get_row_val(row, ['Category'], default='SC')
+            paste_val(cat_val or 'SC')
             
-            time.sleep(0.2) 
+            time.sleep(0.25) 
             pyautogui.press('enter') 
             
             current_index[0] += 1
@@ -436,7 +490,43 @@ def main_gui():
             selected_file.set(p)
             scan_file_for_duplicates()
 
+    def create_sample_excel_file():
+        template_name = "e-Vedhika_Sample_Template.xlsx"
+        try:
+            sample_df = pd.DataFrame([
+                {
+                    'S.No': 1,
+                    'Name': 'K. Ramanjaneyulu',
+                    'Email': 'ramu@gmail.com',
+                    'Mobile': '9848022338',
+                    'Designation': 'Villager',
+                    'Organization': 'Gram Panchayat',
+                    'Gender': 'Male',
+                    'Category': 'BC'
+                },
+                {
+                    'S.No': 2,
+                    'Name': 'B. Lakshmi Devi',
+                    'Email': '',
+                    'Mobile': '9440155672',
+                    'Designation': 'Ward Member',
+                    'Organization': 'Gram Panchayat',
+                    'Gender': 'Female',
+                    'Category': 'SC'
+                }
+            ])
+            sample_df.to_excel(template_name, index=False)
+            if template_name not in excel_files:
+                excel_files.insert(0, template_name)
+                file_dropdown['values'] = excel_files
+            selected_file.set(template_name)
+            scan_file_for_duplicates()
+            messagebox.showinfo("టెంప్లేట్ తయారైంది", f"✓ నమూనా ఎక్సెల్ ఫైల్ ({template_name}) మీ ఫోల్డర్‌లో విజయవంతంగా సృష్టించబడింది!\nమీరు దీనిలో మీ వివరాలను భర్తీ చేసుకోవచ్చు.", parent=root)
+        except Exception as e:
+            messagebox.showerror("Error", f"టెంప్లేట్ సృష్టించడంలో లోపం: {e}", parent=root)
+
     tk.Button(combo_frame, text="Browse...", command=browse_custom_file, bg="#e2e8f0", font=("Helvetica", 8)).pack(side=tk.LEFT)
+    tk.Button(combo_frame, text="📄 నమూనా టెంప్లేట్", command=create_sample_excel_file, bg="#dbeafe", fg="#1e40af", font=("Helvetica", 8, "bold")).pack(side=tk.LEFT, padx=(6, 0))
 
     dupe_banner = tk.Frame(body, bg="#eff6ff", highlightbackground="#bfdbfe", highlightthickness=1, padx=10, pady=8)
     dupe_banner.pack(fill=tk.X, pady=(0, 10))

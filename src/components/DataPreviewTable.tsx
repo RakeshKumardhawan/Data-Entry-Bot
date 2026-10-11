@@ -52,6 +52,12 @@ export const DataPreviewTable: React.FC<DataPreviewTableProps> = ({
     setEditingIndex(null);
   };
 
+  const hasDesignation = data.some(r => 'Designation' in r && r['Designation']);
+  const hasGender = data.some(r => ('Male/Female' in r || 'Gender' in r) && (r['Male/Female'] || r['Gender']));
+  const hasCategory = data.some(r => ('Category' in r || 'Category (General, OC, OBC, SC ST)' in r));
+  const hasAadhaar = data.some(r => 'Aadhaar' in r && r['Aadhaar']);
+  const hasWard = data.some(r => 'Ward' in r && r['Ward']);
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
       {/* Table toolbar */}
@@ -109,8 +115,11 @@ export const DataPreviewTable: React.FC<DataPreviewTableProps> = ({
               <th className="py-2.5 px-3 w-16 text-center">S.No</th>
               <th className="py-2.5 px-3 min-w-44">Name / పేరు</th>
               <th className="py-2.5 px-3 min-w-36">Mobile Number</th>
-              <th className="py-2.5 px-3 min-w-32">Aadhaar Number</th>
-              <th className="py-2.5 px-3 min-w-28">Ward / Street</th>
+              {hasDesignation && <th className="py-2.5 px-3 min-w-32">Designation / హోదా</th>}
+              {hasGender && <th className="py-2.5 px-3 min-w-24">Gender</th>}
+              {hasCategory && <th className="py-2.5 px-3 min-w-24">Category</th>}
+              {hasAadhaar && <th className="py-2.5 px-3 min-w-32">Aadhaar Number</th>}
+              {hasWard && <th className="py-2.5 px-3 min-w-28">Ward / Street</th>}
               <th className="py-2.5 px-3 w-24 text-center">Entry Status</th>
               <th className="py-2.5 px-3 w-16 text-center">Actions</th>
             </tr>
@@ -118,7 +127,7 @@ export const DataPreviewTable: React.FC<DataPreviewTableProps> = ({
           <tbody className="divide-y divide-slate-100">
             {filteredData.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-slate-400">
+                <td colSpan={10} className="py-8 text-center text-slate-400">
                   డేటా కనుగొనబడలేదు (No records found matching filters).
                 </td>
               </tr>
@@ -136,7 +145,7 @@ export const DataPreviewTable: React.FC<DataPreviewTableProps> = ({
                     }`}
                   >
                     <td className="py-2.5 px-3 text-center font-mono font-medium text-slate-700">
-                      {row['S.No']}
+                      {row['SL No'] || row['S.No']}
                     </td>
                     <td className="py-2.5 px-3 font-medium text-slate-900">
                       {row['Name']}
@@ -185,12 +194,31 @@ export const DataPreviewTable: React.FC<DataPreviewTableProps> = ({
                         </div>
                       )}
                     </td>
-                    <td className="py-2.5 px-3 font-mono text-slate-600">
-                      {row['Aadhaar'] || '—'}
-                    </td>
-                    <td className="py-2.5 px-3 text-slate-600">
-                      {row['Ward'] || '—'}
-                    </td>
+                    {hasDesignation && (
+                      <td className="py-2.5 px-3 text-slate-700">
+                        {row['Designation'] || '—'}
+                      </td>
+                    )}
+                    {hasGender && (
+                      <td className="py-2.5 px-3 text-slate-600">
+                        {row['Male/Female'] || row['Gender'] || '—'}
+                      </td>
+                    )}
+                    {hasCategory && (
+                      <td className="py-2.5 px-3 text-slate-600">
+                        {row['Category (General, OC, OBC, SC ST)'] || row['Category'] || '—'}
+                      </td>
+                    )}
+                    {hasAadhaar && (
+                      <td className="py-2.5 px-3 font-mono text-slate-600">
+                        {row['Aadhaar'] || '—'}
+                      </td>
+                    )}
+                    {hasWard && (
+                      <td className="py-2.5 px-3 text-slate-600">
+                        {row['Ward'] || '—'}
+                      </td>
+                    )}
                     <td className="py-2.5 px-3 text-center">
                       <span
                         className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium ${
