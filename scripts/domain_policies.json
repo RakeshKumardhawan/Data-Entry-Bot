@@ -1,0 +1,17 @@
+{
+  "portal.grampanchayat.gov.in": {
+    "status": "allowed",
+    "name": "TMP Official Gram Panchayat Portal",
+    "notes": "అధికారిక పంచాయతీ డేటా ఎంట్రీ ఆపరేటర్లకు బల్క్ ఎక్సెల్ బ్యాచ్ ఎంట్రీకి అనుమతి ఉంది."
+  },
+  "panchayat.telangana.gov.in": {
+    "status": "allowed",
+    "name": "Telangana PR & RD Portal",
+    "notes": "పంచాయతీ సెక్రటరీ లాగిన్ ద్వారా అధీకృత బ్యాచ్ డేటా అప్‌లోడ్ నిబంధనలకు అనుగుణంగా ఉంది."
+  },
+  "strict-portal.ap.gov.in": {
+    "status": "restricted",
+    "name": "Direct Citizen Self-Service Portal",
+    "notes": "నిబంధనల ప్రకారం ఆటోమేటెడ్ హెడ్‌లెస్ బాట్ స్క్రిప్టులు నిషేధించబడ్డాయి. మాన్యువల్ ఎంట్రీ మాత్రమే అవసరం."
+  }
+}

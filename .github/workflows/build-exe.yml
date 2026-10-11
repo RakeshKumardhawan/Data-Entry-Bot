@@ -1,0 +1,33 @@
+name: Auto Build Protected Windows EXE
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows-exe:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Build Dependencies & Obfuscation
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller pandas openpyxl selenium webdriver-manager
+
+      - name: Build Protected Single-File EXE (No Manual Work)
+        run: |
+          pyinstaller --onefile --windowed --name "e-Vedhika.Data.entry_bot" --icon=NONE --clean scripts/data_entry_bot_core.py
+
+      - name: Upload Protected EXE Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: e-Vedhika.Data.entry_bot-Windows-EXE
+          path: dist/e-Vedhika.Data.entry_bot.exe

@@ -1,0 +1,8 @@
+{
+  "name": "Data Entry Bot - Gram Panchayat Portal Automation",
+  "description": "Automated data entry bot for Gram Panchayat portals (TMP Portal and Other Portals) featuring Excel batch ingestion, mobile duplicate validation in Telugu and English, and automated field submission.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
