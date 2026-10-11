@@ -152,7 +152,7 @@ def run_f8_control_panel(df, gp_name):
     
     messagebox.showinfo(
         "Automation Ready", 
-        f"Automation Ready for {gp_name}!\n\n1. Open Chrome and keep the first 'Name' box ready.\n2. Press 'F8' on your keyboard for each record entry.\n\nగమనిక: పోర్టల్‌లో డూప్లికేట్ పాప్-అప్ వస్తే 'Close' బటన్ ప్రెస్ చేయండి.\n\n-- Developed by e-vedhika.in admin Rakesh Dhavan --", 
+        f"Automation Ready for {gp_name}!\n\n1. Open Chrome and keep the first 'Name' box ready.\n2. Press 'F8' on your keyboard for each record entry.\n\nగమనిక: పోర్టల్‌లో 'Kindly check Trainee details' వస్తే, కింద టేబుల్‌లోని 'Select [✓]' బాక్స్ టిక్ చేసి 'Save' నొక్కండి.\n\n-- Developed by e-vedhika.in admin Rakesh Dhavan --", 
         parent=root_init
     )
     root_init.destroy()

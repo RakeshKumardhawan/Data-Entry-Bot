@@ -15,7 +15,7 @@ import { DuplicateMobileAlert } from './components/DuplicateMobileAlert';
 import { DataPreviewTable } from './components/DataPreviewTable';
 import { DataRecord, PortalType, SelectedModule, UserProfile } from './types';
 import { INITIAL_AKKALAPALLI_DATA } from './utils/sampleData';
-import { findDuplicateMobiles } from './utils/excelParser';
+import { findDuplicateMobiles, exportToExcel } from './utils/excelParser';
 import { getActiveUser, setActiveUserSession, getStoredUsers } from './utils/authStorage';
 import { checkDomainPolicy } from './utils/domainPolicyStorage';
 import { Play, Monitor, Layers, ArrowLeft, ShieldAlert, Sparkles, CheckCircle2, ShieldCheck } from 'lucide-react';
@@ -96,25 +96,59 @@ export function App() {
     setRecords(updated);
   };
 
-  // Auto-fix duplicates
+  // Auto-fix duplicates & automatically download the cleaned Excel file
   const handleAutoFixDuplicates = () => {
     const seen = new Set<string>();
+    let fixCount = 0;
+    
+    // First collect all mobile numbers in dataset
+    const allMobiles = new Set<string>();
+    records.forEach(r => {
+      const m = String(r['Mobile'] || '').trim().replace(/\D/g, '').slice(-10);
+      if (m) allMobiles.add(m);
+    });
+
     const updated = records.map((record, index) => {
-      const mob = String(record['Mobile'] || '').trim();
-      if (!seen.has(mob)) {
-        seen.add(mob);
+      const mob = String(record['Mobile'] || '').trim().replace(/\D/g, '').slice(-10);
+      if (!mob || !seen.has(mob)) {
+        if (mob) seen.add(mob);
         return record;
       }
-      const suffix = String(index + 10).slice(-2);
-      const newMobile = mob.slice(0, 8) + suffix;
+
+      // Generate a unique 10-digit number that definitely does not exist anywhere in dataset
+      let newMobile = '';
+      let attempt = index + 10;
+      do {
+        const suffix = String(attempt).padStart(2, '0').slice(-2);
+        newMobile = (mob.length >= 8 ? mob.slice(0, 8) : '98765432') + suffix;
+        attempt++;
+      } while (allMobiles.has(newMobile) || seen.has(newMobile));
+
       seen.add(newMobile);
-      return {
+      allMobiles.add(newMobile);
+      fixCount++;
+
+      // Update all variations of mobile key in record
+      const updatedRecord: DataRecord = {
         ...record,
         'Mobile': newMobile,
       };
+      ['Mobile No', 'Mobile Number', 'Phone', 'Phone Number', 'Phone No', 'mobileno', 'mobile'].forEach(k => {
+        if (k in updatedRecord) {
+          (updatedRecord as any)[k] = newMobile;
+        }
+      });
+      return updatedRecord;
     });
+
     setRecords(updated);
     setHasConfirmedProceed(true);
+
+    // Automatically export and download the fixed Excel file so user has it immediately
+    const outFilename = `${gpName ? gpName.trim() : 'TMP_Trainees'}_Fixed_Unique_Mobiles.xlsx`;
+    exportToExcel(updated, outFilename);
+
+    alert(`✓ విజయవంతంగా ${fixCount} డూప్లికేట్ మొబైల్ నంబర్లు సరిచేయబడ్డాయి!\n\nసరిచేసిన కొత్త ఎక్సెల్ ఫైల్ ("${outFilename}") ఆటోమేటిక్‌గా మీ కంప్యూటర్‌లోకి డౌన్‌లోడ్ చేయబడింది.\n\nముఖ్య గమనిక: మీ స్క్రీన్‌షాట్‌లో కనిపించే విధంగా TMP పోర్టల్ డేటాబేస్‌లో ముందే రిజిస్టర్ అయి ఉన్న పాత ట్రైనీల కోసం, పోర్టల్ టేబుల్‌లో 'Select [✓]' బాక్స్ టిక్ చేసి Save నొక్కండి.`);
   };
 
   // Launch Bot Execution with User Access Control

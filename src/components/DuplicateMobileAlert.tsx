@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertOctagon, Check, X, ShieldAlert, ArrowRight, Wand2 } from 'lucide-react';
+import { AlertOctagon, Check, X, ShieldAlert, ArrowRight, Wand2, Info } from 'lucide-react';
 import { DuplicateGroup, DataRecord } from '../types';
 
 interface DuplicateMobileAlertProps {
@@ -86,6 +86,19 @@ export const DuplicateMobileAlert: React.FC<DuplicateMobileAlertProps> = ({
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Guide for TMP Portal Existing Trainee Popup */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-950 space-y-1 shadow-2xs">
+        <div className="font-bold flex items-center gap-1.5 text-blue-900">
+          <Info className="w-4 h-4 text-blue-600 shrink-0" />
+          <span>TMP పోర్టల్‌లో 'Kindly check below Trainee details having same Mobile No' వస్తే:</span>
+        </div>
+        <p className="text-2xs text-blue-900 leading-relaxed">
+          ఈ ఎర్రర్ వచ్చినప్పుడు ఆ వ్యక్తి పోర్టల్ డేటాబేస్‌లో ముందే నమోదై ఉన్నారని అర్థం. 
+          పోర్టల్ స్క్రీన్‌పై కింద కనిపించే బ్లూ టేబుల్‌లో <strong>'Select [✓]' చెక్‌బాక్స్‌ను టిక్ చేసి పైన 'Save' నొక్కండి</strong>, వెంటనే ఎంట్రీ సేవ్ అవుతుంది!
+          ఎక్సెల్ ఫైల్‌లోని డూప్లికేట్లను సరిచేసి కొత్త ఫైల్ డౌన్‌లోడ్ చేసుకోవడానికి కింద ఉన్న <strong>"Auto-Fix Numbers (🪄)"</strong> బటన్ వాడండి.
+        </p>
       </div>
 
       {/* Decision Prompt matching Python input() */}
