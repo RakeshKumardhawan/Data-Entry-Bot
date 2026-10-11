@@ -11,20 +11,34 @@ export const parseExcelFile = async (file: File): Promise<DataRecord[]> => {
         const workbook = XLSX.read(data, { type: 'array' });
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
-        const jsonData = XLSX.utils.sheet_to_json<any>(worksheet, { defval: '' });
+        const rawRows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1, defval: '' });
+        let headerRowIndex = 0;
+        // Check if row 0 is a title banner (e.g. 'Orientation on GPDP...') and row 1 contains 'SL No', 'Name', 'Mobile No.'
+        if (rawRows.length > 1) {
+          const row1Str = (rawRows[1] || []).map((c: any) => String(c).toLowerCase()).join(' ');
+          if (row1Str.includes('name') || row1Str.includes('mobile') || row1Str.includes('sl no') || row1Str.includes('phone')) {
+            headerRowIndex = 1;
+          }
+        }
+        const jsonData = XLSX.utils.sheet_to_json<any>(worksheet, { range: headerRowIndex, defval: '' });
 
         // Normalize keys and check S.No & Mobile
         const normalizedData: DataRecord[] = jsonData.map((row, idx) => {
           // Normalize S.No if named 'sno', 's.no', 'S.No', 'Serial No', etc.
           let sNo = row['S.No'] || row['s.no'] || row['SNo'] || row['Serial No'] || (idx + 1);
-          // Normalize Mobile if named 'Mobile', 'mobile', 'Phone', 'Cell', etc.
-          let mobile = row['Mobile'] || row['mobile'] || row['Phone'] || row['Phone Number'] || '';
+          // Smart search for Mobile column regardless of spaces or case
+          let mobileKey = Object.keys(row).find(k => {
+            const clean = k.toLowerCase().replace(/[\s_.]/g, '');
+            return ['mobile', 'mobilenumber', 'mobileno', 'phone', 'phonenumber', 'cell', 'contact'].includes(clean);
+          });
+          let rawMobile = mobileKey ? row[mobileKey] : (row['Mobile'] || row['mobile'] || row['Phone'] || row['Phone Number'] || '');
+          let cleanMobile = String(rawMobile).trim().replace(/\.0$/, '').replace(/\D/g, '').slice(-10);
           
           return {
             ...row,
             'S.No': sNo,
             'Name': row['Name'] || row['name'] || `Citizen ${idx + 1}`,
-            'Mobile': String(mobile).trim().replace(/\D/g, '').slice(-10),
+            'Mobile': cleanMobile,
             'Status': 'Pending'
           };
         });
