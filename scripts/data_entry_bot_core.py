@@ -192,9 +192,26 @@ def run_f8_control_panel(df, gp_name):
     current_index = [0]
     is_running = [True]
 
+    def reset_to_first():
+        current_index[0] = 0
+        is_paused[0] = False
+        update_ui_status()
+        messagebox.showinfo("రీసెట్ పూర్తయింది", "రికార్డ్ 1 కి రీసెట్ చేయబడింది (Reset to Record 1)!\n\nఇప్పుడు Chrome లోని 'Name' బాక్స్ పై క్లిక్ చేసి F8 నొక్కండి.", parent=control_win)
+
+    def prev_record():
+        if current_index[0] > 0:
+            current_index[0] -= 1
+            update_ui_status()
+
+    def update_ui_status():
+        if current_index[0] < len(df):
+            row = df.iloc[current_index[0]]
+            name = str(row.iloc[1]) if len(row) > 1 else str(row.get('Name', ''))
+            status_label.config(text=f"Record {current_index[0] + 1}/{len(df)} Ready: {name[:16]}", fg="#2563eb")
+
     def start_action():
         is_paused[0] = False
-        status_label.config(text=f"Record {current_index[0] + 1} ready. Press F8", fg="#2563eb")
+        update_ui_status()
 
     def pause_action():
         is_paused[0] = True
@@ -210,16 +227,28 @@ def run_f8_control_panel(df, gp_name):
         control_win.destroy()
 
     btn_start = tk.Button(control_win, text="Start Entry (F8 Ready)", bg="#16a34a", fg="white", font=("Arial", 9, "bold"), width=24, command=start_action, relief=tk.FLAT)
-    btn_start.pack(pady=3)
+    btn_start.pack(pady=2)
+
+    btn_nav_frame = tk.Frame(control_win, bg="#f8fafc")
+    btn_nav_frame.pack(pady=2)
+
+    btn_reset = tk.Button(btn_nav_frame, text="⏮ Reset to 1", bg="#475569", fg="white", font=("Arial", 8, "bold"), width=11, command=reset_to_first, relief=tk.FLAT)
+    btn_reset.pack(side=tk.LEFT, padx=2)
+
+    btn_prev = tk.Button(btn_nav_frame, text="◀ Previous", bg="#0284c7", fg="white", font=("Arial", 8, "bold"), width=11, command=prev_record, relief=tk.FLAT)
+    btn_prev.pack(side=tk.LEFT, padx=2)
 
     btn_pause = tk.Button(control_win, text="Pause", bg="#f59e0b", fg="white", font=("Arial", 9, "bold"), width=24, command=pause_action, relief=tk.FLAT)
-    btn_pause.pack(pady=3)
+    btn_pause.pack(pady=2)
 
-    btn_resume = tk.Button(control_win, text="Resume", bg="#0284c7", fg="white", font=("Arial", 9, "bold"), width=24, command=resume_action, relief=tk.FLAT)
-    btn_resume.pack(pady=3)
+    btn_resume = tk.Button(control_win, text="Resume", bg="#0ea5e9", fg="white", font=("Arial", 9, "bold"), width=24, command=resume_action, relief=tk.FLAT)
+    btn_resume.pack(pady=2)
 
     btn_cancel = tk.Button(control_win, text="Stop / Cancel", bg="#dc2626", fg="white", font=("Arial", 9, "bold"), width=24, command=cancel_action, relief=tk.FLAT)
-    btn_cancel.pack(pady=3)
+    btn_cancel.pack(pady=2)
+
+    tip_label = tk.Label(control_win, text="⚠️ F8 నొక్కే ముందు Chrome 'Name' పై క్లిక్ చేయండి!", font=("Arial", 7, "bold"), bg="#fef3c7", fg="#92400e", wraplength=320)
+    tip_label.pack(fill=tk.X, padx=8, pady=(4, 2))
 
     def process_entry():
         if not is_running[0]:
