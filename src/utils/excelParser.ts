@@ -12,36 +12,62 @@ export const parseExcelFile = async (file: File): Promise<DataRecord[]> => {
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
         const rawRows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1, defval: '' });
-        let headerRowIndex = 0;
-        // Check if row 0 is a title banner (e.g. 'Orientation on GPDP...') and row 1 contains 'SL No', 'Name', 'Mobile No.'
-        if (rawRows.length > 1) {
-          const row1Str = (rawRows[1] || []).map((c: any) => String(c).toLowerCase()).join(' ');
-          if (row1Str.includes('name') || row1Str.includes('mobile') || row1Str.includes('sl no') || row1Str.includes('phone')) {
-            headerRowIndex = 1;
+        // Check if there is an actual header row in the first 5 rows
+        let headerRowIndex = -1;
+        for (let r = 0; r < Math.min(5, rawRows.length); r++) {
+          const rowStr = (rawRows[r] || []).map((c: any) => String(c).toLowerCase()).join(' ');
+          if (rowStr.includes('name') || rowStr.includes('mobile') || rowStr.includes('sl no') || rowStr.includes('sl.no') || rowStr.includes('phone') || rowStr.includes('designation')) {
+            headerRowIndex = r;
+            break;
           }
         }
-        const jsonData = XLSX.utils.sheet_to_json<any>(worksheet, { range: headerRowIndex, defval: '' });
 
-        // Normalize keys and check S.No & Mobile
-        const normalizedData: DataRecord[] = jsonData.map((row, idx) => {
-          // Normalize S.No if named 'sno', 's.no', 'S.No', 'Serial No', etc.
-          let sNo = row['S.No'] || row['s.no'] || row['SNo'] || row['Serial No'] || (idx + 1);
-          // Smart search for Mobile column regardless of spaces or case
-          let mobileKey = Object.keys(row).find(k => {
-            const clean = k.toLowerCase().replace(/[\s_.]/g, '');
-            return ['mobile', 'mobilenumber', 'mobileno', 'phone', 'phonenumber', 'cell', 'contact'].includes(clean);
+        let normalizedData: DataRecord[] = [];
+
+        if (headerRowIndex !== -1) {
+          const jsonData = XLSX.utils.sheet_to_json<any>(worksheet, { range: headerRowIndex, defval: '' });
+
+          normalizedData = jsonData.map((row, idx) => {
+            let sNo = row['S.No'] || row['s.no'] || row['SNo'] || row['Serial No'] || row['SL.No'] || row['SL No'] || (idx + 1);
+            let mobileKey = Object.keys(row).find(k => {
+              const clean = k.toLowerCase().replace(/[\s_.]/g, '');
+              return ['mobile', 'mobilenumber', 'mobileno', 'phone', 'phonenumber', 'cell', 'contact'].includes(clean);
+            });
+            let rawMobile = mobileKey ? row[mobileKey] : (row['Mobile'] || row['mobile'] || row['Phone'] || row['Phone Number'] || '');
+            let cleanMobile = String(rawMobile).trim().replace(/\.0$/, '').replace(/\D/g, '').slice(-10);
+
+            let nameKey = Object.keys(row).find(k => {
+              const clean = k.toLowerCase().replace(/[\s_.]/g, '');
+              return ['name', 'traineename', 'citizenname'].includes(clean);
+            });
+            let name = nameKey ? row[nameKey] : (row['Name'] || row['name'] || `Citizen ${idx + 1}`);
+
+            return {
+              ...row,
+              'S.No': sNo,
+              'Name': name,
+              'Mobile': cleanMobile,
+              'Status': 'Pending'
+            };
           });
-          let rawMobile = mobileKey ? row[mobileKey] : (row['Mobile'] || row['mobile'] || row['Phone'] || row['Phone Number'] || '');
-          let cleanMobile = String(rawMobile).trim().replace(/\.0$/, '').replace(/\D/g, '').slice(-10);
-          
-          return {
-            ...row,
-            'S.No': sNo,
-            'Name': row['Name'] || row['name'] || `Citizen ${idx + 1}`,
-            'Mobile': cleanMobile,
-            'Status': 'Pending'
-          };
-        });
+        } else {
+          // File has NO header row! (Row 0 directly starts with Citizen 1 data)
+          normalizedData = rawRows.filter(r => r && r.length > 1 && String(r[1] || '').trim() !== '').map((rowArr, idx) => {
+            const rawMobile = rowArr[3] || rowArr[2] || '';
+            const cleanMobile = String(rawMobile).trim().replace(/\.0$/, '').replace(/\D/g, '').slice(-10);
+            return {
+              'S.No': rowArr[0] || (idx + 1),
+              'Name': String(rowArr[1] || `Citizen ${idx + 1}`).trim(),
+              'Email': String(rowArr[2] && String(rowArr[2]).includes('@') ? rowArr[2] : '').trim(),
+              'Mobile': cleanMobile,
+              'Designation': String(rowArr[4] || 'Villager').trim(),
+              'Organization': String(rowArr[5] || 'Gram Panchayat').trim(),
+              'Gender': String(rowArr[6] || 'Male').trim(),
+              'Category': String(rowArr[7] || 'SC').trim(),
+              'Status': 'Pending'
+            };
+          });
+        }
 
         resolve(normalizedData);
       } catch (err) {

@@ -36,6 +36,53 @@ except Exception as e:
 CURRENT_VERSION = "v1.0.0"
 GITHUB_REPO = "RakeshKumardhawan/Data-Entry-Bot"
 
+def load_excel_smart(file_path):
+    """
+    Intelligently handles:
+    1. Standard files with header on Row 0 ('Name', 'Mobile', etc.)
+    2. Files with top title banner (like Google Sheet export) where headers are on Row 1 or 2
+    3. Files with NO header row at all (Row 0 directly starts with S.No 1, Citizen Name, etc.)
+    """
+    try:
+        df_raw = pd.read_excel(file_path, header=None)
+        if len(df_raw) == 0:
+            return pd.DataFrame()
+            
+        header_row_idx = None
+        for r_idx in range(min(5, len(df_raw))):
+            row_vals = [str(x).strip().lower() for x in df_raw.iloc[r_idx].values]
+            if any(h in val for val in row_vals for h in ['name', 'mobile', 'sl no', 'sl.no', 'phone', 'designation']):
+                header_row_idx = r_idx
+                break
+                
+        if header_row_idx is not None:
+            df = pd.read_excel(file_path, header=header_row_idx)
+        else:
+            # File has NO header row! Standardize based on GP format
+            df = df_raw.copy()
+            default_cols = ['S.No', 'Name', 'Email', 'Mobile', 'Designation', 'Organization', 'Gender', 'Category']
+            num_cols = min(len(df.columns), len(default_cols))
+            new_names = {i: default_cols[i] for i in range(num_cols)}
+            df.rename(columns=new_names, inplace=True)
+            
+        return df
+    except Exception:
+        return pd.read_excel(file_path)
+
+def get_row_val(row, keys, fallback_idx=None, default=''):
+    """Safe value extractor matching multiple potential column headers case-insensitively."""
+    for k in keys:
+        for col in row.index:
+            if str(col).strip().lower() == k.lower():
+                val = row[col]
+                if pd.notna(val) and str(val).strip() != '' and str(val).strip().lower() != 'nan':
+                    return str(val).strip()
+    if fallback_idx is not None and fallback_idx < len(row):
+        val = row.iloc[fallback_idx]
+        if pd.notna(val) and str(val).strip() != '' and str(val).strip().lower() != 'nan':
+            return str(val).strip()
+    return default
+
 def find_mobile_column(df):
     """Smart mobile column detector: handles case-insensitivity, spaces, and naming variations."""
     for col in df.columns:
@@ -250,61 +297,63 @@ def run_f8_control_panel(df, gp_name):
 
             time.sleep(0.2)
             
+            def paste_val(text):
+                if text and str(text).strip() != '' and str(text).strip().lower() != 'nan':
+                    try:
+                        control_win.clipboard_clear()
+                        control_win.clipboard_append(str(text).strip())
+                        control_win.update()
+                        pyautogui.hotkey('ctrl', 'v')
+                    except Exception:
+                        pyautogui.write(str(text).strip(), interval=0.01)
+
             # 1. Name 
-            name = str(row.iloc[1]) if len(row) > 1 else str(row.get('Name', ''))
-            if name != 'nan': 
-                pyautogui.write(name.strip(), interval=0.01)
-            time.sleep(0.15)
+            name = get_row_val(row, ['Name', 'Trainee Name', 'name', 'Citizen Name'], fallback_idx=1)
+            paste_val(name)
+            time.sleep(0.18)
             pyautogui.press('tab')
             
-            # 2. Email (Skip)
+            # 2. Email (Skip or paste if available)
+            email = get_row_val(row, ['Email', 'Email ID', 'email'], fallback_idx=2)
+            if email and '@' in email:
+                paste_val(email)
             time.sleep(0.15) 
             pyautogui.press('tab')
             
-            # 3. Mobile (Normalized to clean digits)
-            time.sleep(0.15)
-            mob_val = row.iloc[3] if len(row) > 3 else row.get('Mobile', '')
-            mobile = normalize_mobile_string(mob_val)
-            if mobile: 
-                pyautogui.write(mobile, interval=0.01)
-            time.sleep(0.15)
+            # 3. Mobile (Normalized to clean 10 digits)
+            raw_mob = get_row_val(row, ['Mobile No.', 'Mobile No', 'Mobile', 'Phone', 'Phone Number', 'mobileno'], fallback_idx=3)
+            mobile = normalize_mobile_string(raw_mob)
+            paste_val(mobile)
+            time.sleep(0.18)
             pyautogui.press('tab')
             
             # 4. Designation 
-            time.sleep(0.15)
-            desig = str(row.iloc[4]) if len(row) > 4 else str(row.get('Designation', 'Villager'))
-            if desig != 'nan': 
-                pyautogui.write(desig.strip(), interval=0.01)
-            time.sleep(0.15)
+            desig = get_row_val(row, ['Designation', 'desig'], fallback_idx=4, default='Villager')
+            paste_val(desig)
+            time.sleep(0.18)
             pyautogui.press('tab')
             
             # 5. Organization 
-            time.sleep(0.15)
-            org = str(row.iloc[5]) if len(row) > 5 else str(row.get('Organization', 'Gram Panchayat'))
-            if org != 'nan': 
-                pyautogui.write(org.strip(), interval=0.01)
-            time.sleep(0.15)
+            org = get_row_val(row, ['Organization', 'org'], fallback_idx=5, default='Gram Panchayat')
+            paste_val(org)
+            time.sleep(0.18)
             pyautogui.press('tab')
             
             # 6. Qualification 
-            time.sleep(0.15)
-            pyautogui.write('Not Literate', interval=0.01)
-            time.sleep(0.15)
+            qual = get_row_val(row, ['Qualification', 'qual'], default='Not Literate')
+            paste_val(qual)
+            time.sleep(0.18)
             pyautogui.press('tab')
             
             # 7. Gender 
-            time.sleep(0.15)
-            gender = str(row.iloc[6]) if len(row) > 6 else str(row.get('Gender', 'Male'))
-            if gender != 'nan': 
-                pyautogui.write(gender.strip(), interval=0.01)
-            time.sleep(0.15)
+            gender = get_row_val(row, ['Gender', 'Sex', 'Main Category'], fallback_idx=6, default='Male')
+            paste_val(gender)
+            time.sleep(0.18)
             pyautogui.press('tab')
             
             # 8. Category 
-            time.sleep(0.15)
-            cat = str(row.iloc[7]) if len(row) > 7 else str(row.get('Category', 'SC'))
-            if cat != 'nan': 
-                pyautogui.write(cat.strip(), interval=0.01)
+            cat = get_row_val(row, ['Category', 'Sub Category', 'Community', 'Caste'], fallback_idx=7, default='SC')
+            paste_val(cat)
             
             time.sleep(0.2) 
             pyautogui.press('enter') 
@@ -312,7 +361,7 @@ def run_f8_control_panel(df, gp_name):
             current_index[0] += 1
             
             if current_index[0] < len(df):
-                status_label.config(text=f"Record {current_index[0] + 1} ready. Press F8", fg="#2563eb")
+                update_ui_status()
             else:
                 status_label.config(text="Completed Successfully!", fg="#16a34a")
                 messagebox.showinfo("Done", "డేటా ఎంట్రీ విజయవంతంగా పూర్తయింది! (All records completed)", parent=control_win)
