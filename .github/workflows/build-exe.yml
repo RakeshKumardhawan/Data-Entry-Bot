@@ -28,11 +28,18 @@ jobs:
         run: |
           pyinstaller --onefile --windowed --name "e-Vedhika.Data.entry_bot" --icon=NONE --clean scripts/data_entry_bot_core.py
 
-      - name: Upload Protected EXE Artifact (Backup)
+      - name: Create ZIP Package (Bypasses Chrome Insufficient Permissions)
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/e-Vedhika.Data.entry_bot.exe -DestinationPath dist/e-Vedhika.Data.entry_bot.zip -Force
+
+      - name: Upload Protected EXE & ZIP Artifact (Backup)
         uses: actions/upload-artifact@v4
         with:
-          name: e-Vedhika.Data.entry_bot-Windows-EXE
-          path: dist/e-Vedhika.Data.entry_bot.exe
+          name: e-Vedhika-Release-Package-v1.0.0
+          path: |
+            dist/e-Vedhika.Data.entry_bot.exe
+            dist/e-Vedhika.Data.entry_bot.zip
 
       - name: Publish to GitHub Releases (Direct Release List)
         uses: softprops/action-gh-release@v2
@@ -42,10 +49,13 @@ jobs:
           name: "e-Vedhika Data Entry Bot v1.0.0"
           body: |
             ### e-Vedhika Data Entry Bot (v1.0.0)
-            - **Executable**: `e-Vedhika.Data.entry_bot.exe`
+            - **Executable**: `e-Vedhika.Data.entry_bot.exe` (Raw Standalone EXE)
+            - **ZIP Package**: `e-Vedhika.Data.entry_bot.zip` (Recommended if browser blocks .exe with permissions)
             - **Build Type**: Protected Standalone Windows Executable
             - **Features**: TMP Portal Automation, GP Batch Processing, Duplicate Mobile Validation & Domain Compliance Verification.
-          files: dist/e-Vedhika.Data.entry_bot.exe
+          files: |
+            dist/e-Vedhika.Data.entry_bot.exe
+            dist/e-Vedhika.Data.entry_bot.zip
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: false
           prerelease: false

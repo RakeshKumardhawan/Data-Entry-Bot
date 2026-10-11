@@ -44,11 +44,18 @@ jobs:
         run: |
           pyinstaller --onefile --windowed --name "e-Vedhika.Data.entry_bot" scripts/data_entry_bot_core.py
 
-      - name: Upload Protected EXE Artifact (Backup)
+      - name: Create ZIP Package (Chrome Permission-Free)
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/e-Vedhika.Data.entry_bot.exe -DestinationPath dist/e-Vedhika.Data.entry_bot.zip -Force
+
+      - name: Upload Protected EXE & ZIP Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: e-Vedhika.Data.entry_bot-Windows-EXE
-          path: dist/e-Vedhika.Data.entry_bot.exe
+          name: e-Vedhika-Release-Package-v1.0.0
+          path: |
+            dist/e-Vedhika.Data.entry_bot.exe
+            dist/e-Vedhika.Data.entry_bot.zip
 
       - name: Publish to GitHub Releases (Direct Release List)
         uses: softprops/action-gh-release@v2
@@ -56,7 +63,9 @@ jobs:
         with:
           tag_name: "v1.0.0"
           name: "e-Vedhika Data Entry Bot v1.0.0"
-          files: dist/e-Vedhika.Data.entry_bot.exe
+          files: |
+            dist/e-Vedhika.Data.entry_bot.exe
+            dist/e-Vedhika.Data.entry_bot.zip
           token: \${{ secrets.GITHUB_TOKEN }}
           draft: false
           prerelease: false`;
@@ -253,16 +262,22 @@ if __name__ == '__main__':
               <pre>{githubWorkflowYaml}</pre>
             </div>
 
-            <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200 text-xs text-emerald-900 space-y-1">
-              <div className="font-semibold flex items-center gap-1.5">
-                <Check className="w-4 h-4 text-emerald-600" />
-                <span>GitHub Releases లో ఎలా కనిపిస్తుంది (Direct Release List):</span>
+            <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-950 space-y-2">
+              <div className="font-bold flex items-center gap-1.5 text-amber-800">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>డౌన్‌లోడ్ చేసేటప్పుడు "Failed - Insufficient permissions" ఎర్రర్ వస్తే పరిష్కారం:</span>
               </div>
-              <p className="text-2xs text-emerald-800 leading-relaxed">
-                1. మీరు కోడ్ పుష్ చేసిన వెంటనే GitHub Actions ఈ బిల్డర్‌ను రన్ చేస్తుంది.<br />
-                2. బిల్డ్ పూర్తయిన వెంటనే మీ GitHub రిపోజిటరీ హోమ్‌పేజీలోని <strong>Releases (v1.0.0)</strong> జాబితాలోకి ఆటోమేటిక్‌గా పబ్లిష్ అవుతుంది!<br />
-                3. మీరు మరియు యూజర్లు నేరుగా GitHub Releases విభాగం నుండి <strong>e-Vedhika.Data.entry_bot.exe</strong> ఫైల్‌ను ఒక్క క్లిక్‌తో డౌన్‌లోడ్ చేసుకోవచ్చు.
-              </p>
+              <ul className="text-2xs text-amber-900 space-y-1.5 list-disc list-inside leading-relaxed pl-1">
+                <li>
+                  <strong>1. టాస్క్ మేనేజర్‌లో పాత ప్రాసెస్ క్లోజ్ చేయండి (ముఖ్యమైన కారణం):</strong> మీ కీబోర్డ్‌లో <code className="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold">Ctrl + Shift + Esc</code> నొక్కి Task Manager ఓపెన్ చేయండి. అందులో <code className="bg-amber-100 px-1 py-0.5 rounded font-mono">e-Vedhika.Data.entry_bot.exe</code> లేదా <code className="bg-amber-100 px-1 py-0.5 rounded font-mono">python.exe</code> ఉంటే దానిపై రైట్ క్లిక్ చేసి <strong>"End task"</strong> చేయండి. (పాత ఫైల్ బ్యాక్‌గ్రౌండ్‌లో ఆన్ అయి ఉంటే విండోస్ కొత్త ఫైల్ రాయడానికి అనుమతించదు).
+                </li>
+                <li>
+                  <strong>2. Downloads కాకుండా వేరే లొకేషన్ ఎంచుకోండి:</strong> Chrome సెట్టింగ్స్ లో <code className="bg-amber-100 px-1 py-0.5 rounded font-mono">chrome://settings/downloads</code> కి వెళ్లి <em>"Ask where to save each file before downloading"</em> ఆన్ చేసి, డౌన్‌లోడ్ చేసేటప్పుడు <strong>Desktop</strong> లేదా <strong>D: డ్రైవ్</strong> ఎంచుకోండి.
+                </li>
+                <li>
+                  <strong>3. .ZIP ప్యాకేజీని డౌన్‌లోడ్ చేసుకోండి:</strong> Releases లోని <code className="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold">e-Vedhika.Data.entry_bot.zip</code> ని డౌన్‌లోడ్ చేసుకుంటే బ్రౌజర్ ఎప్పుడూ పర్మిషన్ ఎర్రర్ ఇవ్వదు. ఒక్క క్లిక్‌తో డౌన్‌లోడ్ అయిపోతుంది!
+                </li>
+              </ul>
             </div>
           </div>
 

@@ -23,9 +23,11 @@ pyinstaller --onefile --name "e-Vedhika.Data.entry_bot" --clean scripts/data_ent
 
 echo.
 if exist "dist\e-Vedhika.Data.entry_bot.exe" (
+    powershell -Command "Compress-Archive -Path dist\e-Vedhika.Data.entry_bot.exe -DestinationPath dist\e-Vedhika.Data.entry_bot.zip -Force" >nul 2>&1
     echo ========================================================
     echo  SUCCESS! Your protected e-Vedhika.Data.entry_bot.exe is ready!
     echo  Location: dist\e-Vedhika.Data.entry_bot.exe
+    echo  ZIP File: dist\e-Vedhika.Data.entry_bot.zip (Chrome Permission-Free)
     echo ========================================================
 ) else (
     echo [ERROR] Build failed. Please inspect logs above.
