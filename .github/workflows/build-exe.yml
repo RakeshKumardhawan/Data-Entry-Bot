@@ -8,6 +8,8 @@ on:
 jobs:
   build-windows-exe:
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -26,8 +28,24 @@ jobs:
         run: |
           pyinstaller --onefile --windowed --name "e-Vedhika.Data.entry_bot" --icon=NONE --clean scripts/data_entry_bot_core.py
 
-      - name: Upload Protected EXE Artifact
+      - name: Upload Protected EXE Artifact (Backup)
         uses: actions/upload-artifact@v4
         with:
           name: e-Vedhika.Data.entry_bot-Windows-EXE
           path: dist/e-Vedhika.Data.entry_bot.exe
+
+      - name: Publish to GitHub Releases (Direct Release List)
+        uses: softprops/action-gh-release@v2
+        if: success()
+        with:
+          tag_name: "v1.0.0"
+          name: "e-Vedhika Data Entry Bot v1.0.0"
+          body: |
+            ### e-Vedhika Data Entry Bot (v1.0.0)
+            - **Executable**: `e-Vedhika.Data.entry_bot.exe`
+            - **Build Type**: Protected Standalone Windows Executable
+            - **Features**: TMP Portal Automation, GP Batch Processing, Duplicate Mobile Validation & Domain Compliance Verification.
+          files: dist/e-Vedhika.Data.entry_bot.exe
+          token: ${{ secrets.GITHUB_TOKEN }}
+          draft: false
+          prerelease: false

@@ -24,6 +24,8 @@ on:
 jobs:
   build-windows-exe:
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -42,11 +44,22 @@ jobs:
         run: |
           pyinstaller --onefile --windowed --name "e-Vedhika.Data.entry_bot" scripts/data_entry_bot_core.py
 
-      - name: Upload Protected EXE
+      - name: Upload Protected EXE Artifact (Backup)
         uses: actions/upload-artifact@v4
         with:
           name: e-Vedhika.Data.entry_bot-Windows-EXE
-          path: dist/e-Vedhika.Data.entry_bot.exe`;
+          path: dist/e-Vedhika.Data.entry_bot.exe
+
+      - name: Publish to GitHub Releases (Direct Release List)
+        uses: softprops/action-gh-release@v2
+        if: success()
+        with:
+          tag_name: "v1.0.0"
+          name: "e-Vedhika Data Entry Bot v1.0.0"
+          files: dist/e-Vedhika.Data.entry_bot.exe
+          token: \${{ secrets.GITHUB_TOKEN }}
+          draft: false
+          prerelease: false`;
 
   const handleCopyWorkflow = () => {
     navigator.clipboard.writeText(githubWorkflowYaml);
@@ -243,12 +256,12 @@ if __name__ == '__main__':
             <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200 text-xs text-emerald-900 space-y-1">
               <div className="font-semibold flex items-center gap-1.5">
                 <Check className="w-4 h-4 text-emerald-600" />
-                <span>ఎలా పొందాలి (How to get the .exe):</span>
+                <span>GitHub Releases లో ఎలా కనిపిస్తుంది (Direct Release List):</span>
               </div>
               <p className="text-2xs text-emerald-800 leading-relaxed">
-                1. మీరు ఈ రిపోజిటరీని GitHub లోకి పుష్ చేసిన వెంటనే, GitHub Actions లో "Auto Build Protected Windows EXE" రన్ అవుతుంది.<br />
-                2. రన్ పూర్తయిన తర్వాత "Artifacts" విభాగంలో నేరుగా <strong>e-Vedhika.Data.entry_bot-Windows-EXE.zip</strong> ఫైల్ లభిస్తుంది.<br />
-                3. ఎటువంటి మాన్యువల్ పనులు లేకుండా <strong>e-Vedhika.Data.entry_bot.exe</strong> మీ చేతిలో సిద్ధంగా ఉంటుంది!
+                1. మీరు కోడ్ పుష్ చేసిన వెంటనే GitHub Actions ఈ బిల్డర్‌ను రన్ చేస్తుంది.<br />
+                2. బిల్డ్ పూర్తయిన వెంటనే మీ GitHub రిపోజిటరీ హోమ్‌పేజీలోని <strong>Releases (v1.0.0)</strong> జాబితాలోకి ఆటోమేటిక్‌గా పబ్లిష్ అవుతుంది!<br />
+                3. మీరు మరియు యూజర్లు నేరుగా GitHub Releases విభాగం నుండి <strong>e-Vedhika.Data.entry_bot.exe</strong> ఫైల్‌ను ఒక్క క్లిక్‌తో డౌన్‌లోడ్ చేసుకోవచ్చు.
               </p>
             </div>
           </div>
