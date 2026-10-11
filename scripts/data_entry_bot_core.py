@@ -1,379 +1,386 @@
 """
-e-Vedhika Data Entry Bot - Windows Executable Source (e-Vedhika.Data.entry_bot.exe)
-Protected Edition with GUI Dashboard, Owner PIN Authentication, Duplicate Checker & Domain Compliance
+e-Vedhika Data Entry Bot (e-Vedhika.Data.entry_bot.exe)
+Developed for Gram Panchayat Data Entry Automation
 Version: v1.0.0
+Author: Rakesh Dhavan (e-vedhika.in)
 """
-import os
 import sys
-import json
-import hashlib
-import threading
+import os
 import time
+import urllib.request
+import traceback
 
-# Configure UTF-8 for Windows console to prevent UnicodeEncodeError with Telugu characters
+# Global crash protector: if ANY error occurs, show popup instead of silently closing!
+def show_fatal_error(err_msg):
+    try:
+        import tkinter as tk
+        from tkinter import messagebox
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)
+        messagebox.showerror("e-Vedhika Error", f"అప్లికేషన్ లో ఎర్రర్ సంభవించింది:\n\n{err_msg}")
+        root.destroy()
+    except Exception:
+        print(f"Fatal Error: {err_msg}")
+
 try:
-    if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
-        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-    if sys.stderr and hasattr(sys.stderr, 'reconfigure'):
-        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
-except Exception:
-    pass
+    import pandas as pd
+    import requests
+    import pyautogui
+    import tkinter as tk
+    from tkinter import messagebox, ttk, filedialog
+    import keyboard
+except Exception as e:
+    show_fatal_error(f"లైబ్రరీ లోడ్ చేయడంలో లోపం (Missing dependency):\n{traceback.format_exc()}\n\nదయచేసి 'pip install pandas requests pyautogui keyboard openpyxl' రన్ చేయండి.")
+    sys.exit(1)
 
-# Default Owner Password Hash (Default: 1234 or admin)
-DEFAULT_OWNER_HASH = "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918"
+CURRENT_VERSION = "v1.0.0"
+GITHUB_REPO = "RakeshKumardhawan/Data-Entry-Bot"
 
-# Configurable Domain Policies File
-CONFIG_FILE = "domain_policies.json"
-
-DEFAULT_POLICIES = {
-    "portal.grampanchayat.gov.in": {
-        "status": "allowed",
-        "name": "TMP Official Gram Panchayat Portal",
-        "notes": "అధికారిక పంచాయతీ డేటా ఎంట్రీ ఆపరేటర్లకు బల్క్ ఎక్సెల్ బ్యాచ్ ఎంట్రీకి అనుమతి ఉంది."
-    },
-    "panchayat.telangana.gov.in": {
-        "status": "allowed",
-        "name": "Telangana PR & RD Portal",
-        "notes": "పంచాయతీ సెక్రటరీ లాగిన్ ద్వారా అధీకృత బ్యాచ్ డేటా అప్‌లోడ్ నిబంధనలకు అనుగుణంగా ఉంది."
-    },
-    "strict-portal.ap.gov.in": {
-        "status": "restricted",
-        "name": "Direct Citizen Self-Service Portal",
-        "notes": "నిబంధనల ప్రకారం ఆటోమేటెడ్ హెడ్‌లెస్ బాట్ స్క్రిప్టులు నిషేధించబడ్డాయి. మాన్యువల్ ఎంట్రీ మాత్రమే అవసరం."
-    }
-}
-
-def load_domain_policies():
-    """Loads configurable domain policies without guessing or assuming blacklists."""
-    if os.path.exists(CONFIG_FILE):
-        try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return DEFAULT_POLICIES
-    return DEFAULT_POLICIES
-
-def verify_domain_automation_policy(target_domain: str) -> tuple:
-    """
-    Verifies if target portal allows automation based on configurable list.
-    Safely halts and requests manual review if policy is unknown.
-    """
-    policies = load_domain_policies()
-    clean_domain = target_domain.strip().lower().replace("https://", "").replace("http://", "").split("/")[0]
-    policy = policies.get(clean_domain)
-
-    if not policy:
-        msg = f"[!] భద్రతా హెచ్చరిక: '{clean_domain}' డొమైన్ ఆటోమేషన్ పాలసీ ఇంకా ధృవీకరించబడలేదు!\nనిబంధనల ఉల్లంఘన జరగకుండా సేఫ్‌గా ఆపడం జరిగింది. అడ్మిన్ మాన్యువల్ రివ్యూ అవసరం."
-        return False, msg
-
-    if policy.get("status") == "restricted":
-        msg = f"[X] ఆటోమేషన్ నిలిపివేయబడింది: '{policy.get('name', clean_domain)}' నిబంధనల ప్రకారం ఆటోమేషన్ నిషేధం.\nకారణం: {policy.get('notes', 'ఆటోమేషన్ అనుమతించబడదు.')}"
-        return False, msg
-
-    return True, f"[✓] పాలసీ ధృవీకరించబడింది: {clean_domain} (ఆటోమేషన్ అనుమతించబడింది)"
+def check_for_updates(parent=None):
+    try:
+        api_url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+        response = requests.get(api_url, timeout=4)
+        if response.status_code == 200:
+            latest_release = response.json()
+            latest_version = latest_release.get("tag_name", CURRENT_VERSION)
+            if latest_version != CURRENT_VERSION:
+                if messagebox.askyesno(
+                    "నూతన అప్‌డేట్ అందుబాటులో ఉంది",
+                    f"కొత్త వెర్షన్ {latest_version} అందుబాటులో ఉంది!\nమీరు ఇప్పుడే ఆటోమేటిక్‌గా డౌన్‌లోడ్ చేయాలనుకుంటున్నారా?",
+                    parent=parent
+                ):
+                    assets = latest_release.get("assets", [])
+                    if assets:
+                        download_url = assets[0]["browser_download_url"]
+                        new_file = f"e-Vedhika.Data.entry_bot_{latest_version}.exe"
+                        urllib.request.urlretrieve(download_url, new_file)
+                        messagebox.showinfo("అప్‌డేట్ పూర్తి", f"కొత్త ఫైల్ ({new_file}) మీ ఫోల్డర్‌లో సేవ్ చేయబడింది.\nదయచేసి దీనిని మూసివేసి కొత్త ఫైల్‌ను ఓపెన్ చేయండి.", parent=parent)
+                        sys.exit(0)
+    except Exception:
+        # Ignore update check errors so app starts smoothly offline
+        pass
 
 def check_duplicate_mobiles(df):
-    """Finds duplicate phone numbers in DataFrame."""
     if 'Mobile' not in df.columns:
         return False, []
-    dupes = df[df.duplicated('Mobile', keep=False)]
-    if not dupes.empty:
+    duplicates = df[df.duplicated('Mobile', keep=False)]
+    if not duplicates.empty:
         records = []
-        for _, row in dupes.iterrows():
-            records.append((row.get('S.No', '-'), str(row.get('Mobile', ''))))
+        for index, row in duplicates.iterrows():
+            s_no = row['S.No'] if 'S.No' in df.columns else index + 1
+            records.append((s_no, str(row['Mobile'])))
         return True, records
     return False, []
 
-# ==============================================================================
-# TKINTER GRAPHICAL USER INTERFACE (Desktop Window for Windows)
-# ==============================================================================
-def launch_gui():
-    import tkinter as tk
-    from tkinter import ttk, messagebox, filedialog
+def run_f8_control_panel(df, gp_name):
+    # Initial instruction popup
+    root_init = tk.Tk()
+    root_init.withdraw() 
+    root_init.attributes('-topmost', True) 
+    
+    messagebox.showinfo(
+        "Automation Ready", 
+        f"Automation Ready for {gp_name}!\n\n1. Open Chrome and keep the first 'Name' box ready.\n2. Press 'F8' on your keyboard for each record entry.\n\n-- Developed by e-vedhika.in admin Rakesh Dhavan --", 
+        parent=root_init
+    )
+    root_init.destroy()
 
+    # Control Panel Window
+    control_win = tk.Tk()
+    control_win.title("E-Vedhika - Automation Control Panel")
+    control_win.geometry("340x300")
+    control_win.attributes('-topmost', True)
+    control_win.config(bg="#f8fafc")
+    
+    title_frame = tk.Frame(control_win, bg="#0c3875", height=45)
+    title_frame.pack(fill=tk.X)
+    
+    tk.Label(title_frame, text="E-Vedhika Automation Panel", font=("Arial", 10, "bold"), bg="#0c3875", fg="#ffffff").pack(pady=4)
+    tk.Label(title_frame, text=f"GP: {gp_name} ({len(df)} Records)", font=("Arial", 8), bg="#0c3875", fg="#fbe947").pack(pady=(0, 4))
+
+    status_label = tk.Label(control_win, text="Status: Ready. Press F8", font=("Arial", 9, "bold"), bg="#f8fafc", fg="#2563eb")
+    status_label.pack(pady=8)
+
+    is_paused = [False]
+    current_index = [0]
+    is_running = [True]
+
+    def start_action():
+        is_paused[0] = False
+        status_label.config(text=f"Record {current_index[0] + 1} ready. Press F8", fg="#2563eb")
+
+    def pause_action():
+        is_paused[0] = True
+        status_label.config(text="Status: Paused", fg="#d97706")
+
+    def resume_action():
+        is_paused[0] = False
+        status_label.config(text="Status: Resumed (Press F8)", fg="#16a34a")
+
+    def cancel_action():
+        is_running[0] = False
+        status_label.config(text="Status: Cancelled", fg="#dc2626")
+        control_win.destroy()
+
+    # Buttons layout
+    btn_start = tk.Button(control_win, text="Start Entry (F8 Ready)", bg="#16a34a", fg="white", font=("Arial", 9, "bold"), width=24, command=start_action, relief=tk.FLAT)
+    btn_start.pack(pady=3)
+
+    btn_pause = tk.Button(control_win, text="Pause", bg="#f59e0b", fg="white", font=("Arial", 9, "bold"), width=24, command=pause_action, relief=tk.FLAT)
+    btn_pause.pack(pady=3)
+
+    btn_resume = tk.Button(control_win, text="Resume", bg="#0284c7", fg="white", font=("Arial", 9, "bold"), width=24, command=resume_action, relief=tk.FLAT)
+    btn_resume.pack(pady=3)
+
+    btn_cancel = tk.Button(control_win, text="Stop / Cancel", bg="#dc2626", fg="white", font=("Arial", 9, "bold"), width=24, command=cancel_action, relief=tk.FLAT)
+    btn_cancel.pack(pady=3)
+
+    def process_entry():
+        if not is_running[0]:
+            return
+        if is_paused[0]:
+            control_win.after(200, check_f8)
+            return
+
+        if current_index[0] < len(df):
+            index = current_index[0]
+            row = df.iloc[index]
+            
+            status_label.config(text=f"Processing Record {index + 1}...", fg="#16a34a")
+            control_win.update()
+
+            time.sleep(0.2)
+            
+            # 1. Name 
+            name = str(row.iloc[1]) if len(row) > 1 else str(row.get('Name', ''))
+            if name != 'nan': 
+                pyautogui.write(name.strip(), interval=0.01)
+            time.sleep(0.15)
+            pyautogui.press('tab')
+            
+            # 2. Email (Skip)
+            time.sleep(0.15) 
+            pyautogui.press('tab')
+            
+            # 3. Mobile 
+            time.sleep(0.15)
+            mobile = str(row.iloc[3]) if len(row) > 3 else str(row.get('Mobile', ''))
+            if mobile != 'nan': 
+                pyautogui.write(mobile.split('.')[0], interval=0.01)
+            time.sleep(0.15)
+            pyautogui.press('tab')
+            
+            # 4. Designation 
+            time.sleep(0.15)
+            desig = str(row.iloc[4]) if len(row) > 4 else str(row.get('Designation', 'Villager'))
+            if desig != 'nan': 
+                pyautogui.write(desig.strip(), interval=0.01)
+            time.sleep(0.15)
+            pyautogui.press('tab')
+            
+            # 5. Organization 
+            time.sleep(0.15)
+            org = str(row.iloc[5]) if len(row) > 5 else str(row.get('Organization', 'Gram Panchayat'))
+            if org != 'nan': 
+                pyautogui.write(org.strip(), interval=0.01)
+            time.sleep(0.15)
+            pyautogui.press('tab')
+            
+            # 6. Qualification 
+            time.sleep(0.15)
+            pyautogui.write('Not Literate', interval=0.01)
+            time.sleep(0.15)
+            pyautogui.press('tab')
+            
+            # 7. Gender 
+            time.sleep(0.15)
+            gender = str(row.iloc[6]) if len(row) > 6 else str(row.get('Gender', 'Male'))
+            if gender != 'nan': 
+                pyautogui.write(gender.strip(), interval=0.01)
+            time.sleep(0.15)
+            pyautogui.press('tab')
+            
+            # 8. Category 
+            time.sleep(0.15)
+            cat = str(row.iloc[7]) if len(row) > 7 else str(row.get('Category', 'SC'))
+            if cat != 'nan': 
+                pyautogui.write(cat.strip(), interval=0.01)
+            
+            time.sleep(0.2) 
+            pyautogui.press('enter') 
+            
+            current_index[0] += 1
+            
+            if current_index[0] < len(df):
+                status_label.config(text=f"Record {current_index[0] + 1} ready. Press F8", fg="#2563eb")
+            else:
+                status_label.config(text="Completed Successfully!", fg="#16a34a")
+                messagebox.showinfo("Done", "డేటా ఎంట్రీ విజయవంతంగా పూర్తయింది! (All records completed)", parent=control_win)
+                control_win.destroy()
+                return
+
+        control_win.after(200, check_f8)
+
+    def check_f8():
+        if not is_running[0]:
+            return
+        try:
+            if keyboard.is_pressed('f8'):
+                process_entry()
+            else:
+                control_win.after(100, check_f8)
+        except Exception:
+            control_win.after(100, check_f8)
+
+    control_win.after(100, check_f8)
+    control_win.mainloop()
+
+def main_gui():
     root = tk.Tk()
-    root.title("E-Vedhika — Data Entry Bot (v1.0.0)")
-    root.geometry("680x620")
-    root.minsize(620, 560)
+    root.title("E-Vedhika — TMP Portal Data Entry Bot (v1.0.0)")
+    root.geometry("520x460")
+    root.minsize(500, 420)
     root.configure(bg="#f8fafc")
 
-    # State variables
-    authenticated = tk.BooleanVar(value=False)
-    selected_file_path = tk.StringVar(value="")
+    # Header Frame
+    header = tk.Frame(root, bg="#0c3875", height=70)
+    header.pack(fill=tk.X)
 
-    # 1. Header Frame
-    header_frame = tk.Frame(root, bg="#0c3875", height=75)
-    header_frame.pack(fill=tk.X, side=tk.TOP)
+    tk.Label(header, text="E-Vedhika — Data Entry Bot", font=("Helvetica", 14, "bold"), fg="#ffffff", bg="#0c3875").pack(anchor="w", padx=18, pady=(10, 2))
+    tk.Label(header, text="TMP పోర్టల్ ఆటోమేషన్ • F8 కీబోర్డ్ ఎంట్రీ (v1.0.0)", font=("Helvetica", 9), fg="#fbe947", bg="#0c3875").pack(anchor="w", padx=18, pady=(0, 10))
 
-    title_label = tk.Label(
-        header_frame,
-        text="E-Vedhika — Data Entry Bot",
-        font=("Helvetica", 16, "bold"),
-        fg="#ffffff",
-        bg="#0c3875"
-    )
-    title_label.pack(anchor="w", padx=20, pady=(12, 2))
+    # Body
+    body = tk.Frame(root, bg="#f8fafc", padx=18, pady=12)
+    body.pack(fill=tk.BOTH, expand=True)
 
-    sub_label = tk.Label(
-        header_frame,
-        text="All Problems, One Solution • గ్రామ పంచాయతీ పోర్టల్ ఆటోమేషన్ (v1.0.0)",
-        font=("Helvetica", 9),
-        fg="#fbe947",
-        bg="#0c3875"
-    )
-    sub_label.pack(anchor="w", padx=20, pady=(0, 10))
+    # Auto-create demo_data.xlsx if no excel files exist
+    excel_files = [f for f in os.listdir() if f.endswith('.xlsx') or f.endswith('.xls')]
+    if not excel_files:
+        demo_df = pd.DataFrame({
+            'S.No': [1, 2],
+            'Name': ['Demo User One', 'Demo User Two'],
+            'Email': ['demo1@gmail.com', 'demo2@gmail.com'],
+            'Mobile': [9876543210, 9123456789],
+            'Designation': ['Villager', 'Villager'],
+            'Organization': ['Gram Panchayat', 'Gram Panchayat'],
+            'Gender': ['Male', 'Female'],
+            'Category': ['SC', 'ST']
+        })
+        demo_df.to_excel('demo_data.xlsx', index=False)
+        excel_files = ['demo_data.xlsx']
 
-    # Main Scrollable Content Area
-    content = tk.Frame(root, bg="#f8fafc", padx=20, pady=15)
-    content.pack(fill=tk.BOTH, expand=True)
+    # 1. Select Excel File
+    f_box = tk.LabelFrame(body, text=" 1. ఎక్సెల్ ఫైల్ ఎంపిక (Select Excel File) ", bg="#ffffff", font=("Helvetica", 9, "bold"), fg="#1e293b", padx=12, pady=10)
+    f_box.pack(fill=tk.X, pady=(0, 12))
 
-    # 2. Security Section (Owner PIN Authentication)
-    sec_box = tk.LabelFrame(content, text=" 🔒 సెక్యూరిటీ వెరిఫికేషన్ (Owner PIN Check) ", bg="#ffffff", font=("Helvetica", 9, "bold"), fg="#1e293b", padx=12, pady=10)
-    sec_box.pack(fill=tk.X, pady=(0, 10))
+    selected_file = tk.StringVar(value=excel_files[0] if excel_files else "")
 
-    sec_inner = tk.Frame(sec_box, bg="#ffffff")
-    sec_inner.pack(fill=tk.X)
+    combo_frame = tk.Frame(f_box, bg="#ffffff")
+    combo_frame.pack(fill=tk.X)
 
-    tk.Label(sec_inner, text="అడ్మిన్ PIN / Password:", bg="#ffffff", font=("Helvetica", 9)).pack(side=tk.LEFT, padx=(0, 8))
-    pin_entry = tk.Entry(sec_inner, show="*", width=18, font=("Helvetica", 10))
-    pin_entry.insert(0, "1234")
-    pin_entry.pack(side=tk.LEFT, padx=(0, 10))
+    tk.Label(combo_frame, text="ఫైల్:", bg="#ffffff", font=("Helvetica", 9)).pack(side=tk.LEFT, padx=(0, 8))
+    file_dropdown = ttk.Combobox(combo_frame, textvariable=selected_file, values=excel_files, state="readonly", width=30)
+    file_dropdown.pack(side=tk.LEFT, padx=(0, 8))
 
-    def verify_pin():
-        entered = pin_entry.get().strip()
-        entered_hash = hashlib.sha256(entered.encode()).hexdigest()
-        owner_key = os.environ.get("BOT_OWNER_KEY", DEFAULT_OWNER_HASH)
-        if entered_hash == owner_key or entered in ["1234", "admin", "MySecretPin2026"]:
-            authenticated.set(True)
-            pin_status_label.config(text="✓ వెరిఫై అయింది (Access Granted)", fg="#16a34a")
-            pin_btn.config(state=tk.DISABLED)
-            pin_entry.config(state=tk.DISABLED)
-            btn_run.config(state=tk.NORMAL)
-            btn_check.config(state=tk.NORMAL)
-            log("అడ్మిన్ వెరిఫికేషన్ విజయవంతమైంది. బాట్ సిద్ధంగా ఉంది.\n")
-        else:
-            messagebox.showerror("తప్పుడు పాస్‌వర్డ్", "తప్పుడు అడ్మిన్ పాస్‌వర్డ్! దయచేసి సరైన PIN ఎంటర్ చేయండి.")
+    def browse_custom_file():
+        p = filedialog.askopenfilename(title="Excel ఫైల్‌ను ఎంచుకోండి", filetypes=[("Excel Files", "*.xlsx;*.xls"), ("All Files", "*.*")])
+        if p:
+            if p not in excel_files:
+                excel_files.append(p)
+                file_dropdown['values'] = excel_files
+            selected_file.set(p)
 
-    pin_btn = tk.Button(sec_inner, text="వెరిఫై చేయండి (Login)", bg="#2563eb", fg="#ffffff", font=("Helvetica", 9, "bold"), padx=10, command=verify_pin, relief=tk.FLAT)
-    pin_btn.pack(side=tk.LEFT)
+    tk.Button(combo_frame, text="Browse...", command=browse_custom_file, bg="#e2e8f0", font=("Helvetica", 8)).pack(side=tk.LEFT)
 
-    pin_status_label = tk.Label(sec_inner, text="[లాగిన్ కాలేదు]", fg="#dc2626", bg="#ffffff", font=("Helvetica", 8, "bold"))
-    pin_status_label.pack(side=tk.LEFT, padx=12)
+    # 2. Portal Selection Box
+    p_box = tk.LabelFrame(body, text=" 2. పోర్టల్ ఎంపిక (Select Portal) ", bg="#ffffff", font=("Helvetica", 9, "bold"), fg="#1e293b", padx=12, pady=10)
+    p_box.pack(fill=tk.X, pady=(0, 12))
 
-    # 3. Batch File & Portal Selection
-    file_box = tk.LabelFrame(content, text=" 📁 ఎక్సెల్ ఫైల్ & పోర్టల్ ఎంపిక (Batch File) ", bg="#ffffff", font=("Helvetica", 9, "bold"), fg="#1e293b", padx=12, pady=10)
-    file_box.pack(fill=tk.X, pady=(0, 10))
+    portal_var = tk.StringVar(value="TMP Portal")
+    tk.Radiobutton(p_box, text="TMP Portal (గ్రామ పంచాయతీ డేటా ఎంట్రీ)", variable=portal_var, value="TMP Portal", bg="#ffffff", font=("Helvetica", 9, "bold"), fg="#0c3875").pack(anchor="w")
 
-    # Portal Selector
-    p_frame = tk.Frame(file_box, bg="#ffffff")
-    p_frame.pack(fill=tk.X, pady=(0, 6))
-    tk.Label(p_frame, text="పోర్టల్:", bg="#ffffff", font=("Helvetica", 9)).pack(side=tk.LEFT, padx=(0, 8))
-    portal_combo = ttk.Combobox(p_frame, values=["TMP Portal (portal.grampanchayat.gov.in)", "Other Verified Portal"], width=42, state="readonly")
-    portal_combo.current(0)
-    portal_combo.pack(side=tk.LEFT)
-
-    # Excel Path Selector
-    f_frame = tk.Frame(file_box, bg="#ffffff")
-    f_frame.pack(fill=tk.X, pady=4)
-    tk.Label(f_frame, text="ఎక్సెల్ ఫైల్ (.xlsx):", bg="#ffffff", font=("Helvetica", 9)).pack(side=tk.LEFT, padx=(0, 8))
-    file_entry = tk.Entry(f_frame, textvariable=selected_file_path, width=42, font=("Helvetica", 9))
-    file_entry.pack(side=tk.LEFT, padx=(0, 8))
-
-    def browse_excel():
-        path = filedialog.askopenfilename(
-            title="గ్రామ పంచాయతీ ఎక్సెల్ ఫైల్‌ను ఎంచుకోండి",
-            filetypes=[("Excel Files", "*.xlsx;*.xls"), ("All Files", "*.*")]
-        )
-        if path:
-            selected_file_path.set(path)
-            log(f"ఫైల్ ఎంపిక చేయబడింది: {os.path.basename(path)}\n")
-
-    btn_browse = tk.Button(f_frame, text="Browse...", bg="#e2e8f0", fg="#1e293b", font=("Helvetica", 9), command=browse_excel, relief=tk.GROOVE)
-    btn_browse.pack(side=tk.LEFT)
-
-    # 4. Action Buttons Frame
-    btn_frame = tk.Frame(content, bg="#f8fafc")
+    # 3. Actions Frame
+    btn_frame = tk.Frame(body, bg="#f8fafc")
     btn_frame.pack(fill=tk.X, pady=(0, 8))
 
-    def check_dupes_action():
-        path = selected_file_path.get().strip()
-        if not path or not os.path.exists(path):
-            messagebox.showwarning("ఫైల్ ఎంచుకోండి", "దయచేసి ముందుగా ఎక్సెల్ (.xlsx) ఫైల్‌ను ఎంచుకోండి.")
+    def on_check_duplicates():
+        f = selected_file.get().strip()
+        if not f or not os.path.exists(f):
+            messagebox.showerror("Error", "దయచేసి సరైన ఎక్సెల్ ఫైల్‌ను ఎంచుకోండి.", parent=root)
             return
-
-        import pandas as pd
         try:
-            df = pd.read_excel(path)
+            df = pd.read_excel(f)
             has_dupes, dupes = check_duplicate_mobiles(df)
             if has_dupes:
-                msg = f"హెచ్చరిక: ఎక్సెల్ లో {len(dupes)} రిపీట్ అయిన మొబైల్ నంబర్లు ఉన్నాయి!\n\n"
+                msg = f"హెచ్చరిక: ఈ ఎక్సెల్ ఫైల్ లో {len(dupes)} డూప్లికేట్ మొబైల్ నంబర్లు ఉన్నాయి!\n\n"
                 for sno, mob in dupes[:10]:
-                    msg += f"• S.No: {sno} | Mobile: {mob}\n"
+                    msg += f"• Serial: {sno} | Mobile: {mob}\n"
                 if len(dupes) > 10:
-                    msg += f"...మరియు ఇంకో {len(dupes)-10} రికార్డులు.\n"
-                msg += "\nఈ నంబర్లను సరిచేసిన తర్వాత రన్ చేయండి."
-                messagebox.showwarning("డూప్లికేట్ మొబైల్ నంబర్లు", msg)
-                log(f"[హెచ్చరిక] {len(dupes)} డూప్లికేట్ మొబైల్ నంబర్లు గుర్తించబడ్డాయి.\n")
+                    msg += f"...మరియు ఇంకో {len(dupes)-10} రికార్డులు ఉన్నాయి.\n"
+                messagebox.showwarning("డూప్లికేట్ నంబర్లు ఉన్నాయి", msg, parent=root)
             else:
-                messagebox.showinfo("పరిశీలన పూర్తి", "✓ అద్భుతం! ఎక్సెల్ లో ఎలాంటి డూప్లికేట్ మొబైల్ నంబర్లు లేవు.")
-                log("✓ డూప్లికేట్ నంబర్లు లేవు. ఎక్సెల్ డేటా పర్ఫెక్ట్‌గా ఉంది.\n")
-        except Exception as e:
-            messagebox.showerror("Error", f"ఎక్సెల్ చదవడంలో లోపం: {e}")
+                messagebox.showinfo("తనిఖీ పూర్తి", "✓ అద్భుతం! ఈ ఫైల్ లో ఎలాంటి డూప్లికేట్ మొబైల్ నంబర్లు లేవు.", parent=root)
+        except Exception as err:
+            messagebox.showerror("Error", f"ఎక్సెల్ చదవడంలో లోపం: {err}", parent=root)
 
-    def run_entry_action():
-        path = selected_file_path.get().strip()
-        if not path or not os.path.exists(path):
-            messagebox.showwarning("ఫైల్ ఎంచుకోండి", "దయచేసి ముందుగా ఎక్సెల్ (.xlsx) ఫైల్‌ను ఎంచుకోండి.")
+    def on_start_automation():
+        f = selected_file.get().strip()
+        if not f or not os.path.exists(f):
+            messagebox.showerror("Error", "దయచేసి సరైన ఎక్సెల్ ఫైల్‌ను ఎంచుకోండి.", parent=root)
             return
-
-        # 1. Verify Target Domain Automation Policy
-        target_domain = "portal.grampanchayat.gov.in"
-        allowed, policy_msg = verify_domain_automation_policy(target_domain)
-        if not allowed:
-            messagebox.showerror("ఆటోమేషన్ నిలిపివేయబడింది", policy_msg)
-            log(f"{policy_msg}\n")
-            return
-
-        log(f"{policy_msg}\n")
-        log(f"{os.path.basename(path)} కోసం TMP పోర్టల్ డేటా ఎంట్రీ ప్రారంభమవుతుంది...\n")
-
-        # Run simulated automation in a background thread so GUI doesn't freeze
-        def worker():
-            btn_run.config(state=tk.DISABLED)
-            try:
-                import pandas as pd
-                df = pd.read_excel(path)
-                total = len(df)
-                for idx, row in df.iterrows():
-                    sno = row.get('S.No', idx+1)
-                    name = row.get('Name', 'Citizen')
-                    mobile = row.get('Mobile', '-')
-                    log(f"[{idx+1}/{total}] రికార్డ్ సబ్మిట్ అవుతోంది: S.No {sno} - {name} ({mobile})\n")
-                    time.sleep(0.3)
-                log("\n[✓] డేటా ఎంట్రీ విజయవంతంగా పూర్తయింది! (Completed)\n")
-                messagebox.showinfo("పూర్తయింది", "TMP పోర్టల్ డేటా ఎంట్రీ విజయవంతంగా పూర్తయింది!")
-            except Exception as e:
-                log(f"[Error]: {e}\n")
-                messagebox.showerror("Error", str(e))
-            finally:
-                btn_run.config(state=tk.NORMAL)
-
-        threading.Thread(target=worker, daemon=True).start()
+        try:
+            df = pd.read_excel(f)
+            has_dupes, dupes = check_duplicate_mobiles(df)
+            if has_dupes:
+                if not messagebox.askyesno("డూప్లికేట్ హెచ్చరిక", f"ఈ ఎక్సెల్ లో {len(dupes)} డూప్లికేట్ మొబైల్ నంబర్లు ఉన్నాయి!\nమీరు అయినా కూడా ఎంట్రీని కొనసాగించాలనుకుంటున్నారా? (Continue anyway?)", parent=root):
+                    return
+            
+            gp_name = os.path.basename(f).split('.')[0]
+            root.withdraw() # Hide main window while automation runs
+            run_f8_control_panel(df, gp_name)
+            root.deiconify() # Show main window again when done
+        except Exception as err:
+            messagebox.showerror("Error", f"డేటా ఎంట్రీ ప్రారంభించడంలో లోపం: {err}", parent=root)
 
     btn_check = tk.Button(
-        btn_frame,
-        text="డూప్లికేట్ మొబైల్స్ చెక్ చేయండి",
-        bg="#0284c7",
-        fg="#ffffff",
-        font=("Helvetica", 9, "bold"),
-        padx=12,
-        pady=6,
-        command=check_dupes_action,
-        state=tk.DISABLED,
+        btn_frame, 
+        text="డూప్లికేట్ మొబైల్స్ చెక్ చేయండి", 
+        command=on_check_duplicates, 
+        bg="#0284c7", 
+        fg="#ffffff", 
+        font=("Helvetica", 9, "bold"), 
+        padx=12, 
+        pady=8,
         relief=tk.FLAT
     )
     btn_check.pack(side=tk.LEFT, padx=(0, 10))
 
-    btn_run = tk.Button(
-        btn_frame,
-        text="▶ Start Data Entry Bot (ఎంట్రీ స్టార్ట్ చేయండి)",
-        bg="#16a34a",
-        fg="#ffffff",
-        font=("Helvetica", 9, "bold"),
-        padx=16,
-        pady=6,
-        command=run_entry_action,
-        state=tk.DISABLED,
+    btn_start = tk.Button(
+        btn_frame, 
+        text="▶ Start Automation (F8 Panel)", 
+        command=on_start_automation, 
+        bg="#16a34a", 
+        fg="#ffffff", 
+        font=("Helvetica", 9, "bold"), 
+        padx=14, 
+        pady=8,
         relief=tk.FLAT
     )
-    btn_run.pack(side=tk.LEFT)
+    btn_start.pack(side=tk.LEFT)
 
-    # 5. Output Terminal Log Text Area
-    log_box = tk.LabelFrame(content, text=" 📋 బాట్ ఎగ్జిక్యూషన్ లాగ్ (Terminal Output) ", bg="#ffffff", font=("Helvetica", 9, "bold"), fg="#1e293b", padx=8, pady=8)
-    log_box.pack(fill=tk.BOTH, expand=True)
+    # Footer note
+    footer = tk.Frame(root, bg="#f1f5f9", height=35)
+    footer.pack(fill=tk.X, side=tk.BOTTOM)
+    tk.Label(footer, text="-- Developed by e-vedhika.in admin Rakesh Dhavan --", font=("Helvetica", 8), bg="#f1f5f9", fg="#64748b").pack(pady=8)
 
-    text_log = tk.Text(log_box, bg="#0f172a", fg="#38bdf8", font=("Consolas", 9), insertbackground="#ffffff", relief=tk.FLAT)
-    text_log.pack(fill=tk.BOTH, expand=True)
-
-    def log(msg: str):
-        text_log.insert(tk.END, msg)
-        text_log.see(tk.END)
-
-    log("e-Vedhika Data Entry Bot v1.0.0 సిద్ధంగా ఉంది.\n")
-    log("దయచేసి మీ అడ్మిన్ పాస్‌వర్డ్ (1234 లేదా admin) వెరిఫై చేసి ఫైల్ ఎంచుకోండి.\n")
+    # Check for updates in background
+    root.after(1000, lambda: check_for_updates(root))
 
     root.mainloop()
 
-# ==============================================================================
-# FALLBACK CLI RUNNER (For Headless / Command Line Execution)
-# ==============================================================================
-def launch_cli():
-    import getpass
-    import pandas as pd
-
-    print("=" * 60)
-    print("   e-Vedhika Data Entry Bot - v1.0.0 (Protected Build)")
-    print("=" * 60)
-    
-    attempts = 3
-    while attempts > 0:
-        entered = getpass.getpass("అడ్మిన్ పాస్‌వర్డ్ ఎంటర్ చేయండి (Admin PIN): ")
-        entered_hash = hashlib.sha256(entered.encode()).hexdigest()
-        owner_key = os.environ.get("BOT_OWNER_KEY", DEFAULT_OWNER_HASH)
-        if entered_hash == owner_key or entered in ["1234", "admin", "MySecretPin2026"]:
-            print("\n[✓] వెరిఫికేషన్ సక్సెస్! యాక్సెస్ ఇవ్వబడింది.\n")
-            break
-        else:
-            attempts -= 1
-            print(f"[!] తప్పుడు పాస్‌వర్డ్! మిగిలిన ప్రయత్నాలు: {attempts}")
-    else:
-        print("\n[X] యాక్సెస్ తిరస్కరించబడింది.")
-        sys.exit(1)
-
-    gp_name = input("గ్రామ పంచాయతీ పేరు ఎంటర్ చేయండి (ఉదా: Akkalapalli): ").strip()
-    file_path = f"{gp_name}.xlsx"
-    if os.path.exists(file_path):
-        df = pd.read_excel(file_path)
-        has_dupes, dupes = check_duplicate_mobiles(df)
-        if has_dupes:
-            print("హెచ్చరిక: Excel లో రిపీట్ అయిన మొబైల్ నంబర్లు ఉన్నాయి!")
-            for sno, mob in dupes:
-                print(f"S.No: {sno} | Mobile: {mob}")
-            c = input("ఇలాగే కంటిన్యూ చేయాలా? (y/n): ")
-            if c.lower() != 'y':
-                return
-        print(f"\n{gp_name} కోసం TMP పోర్టల్ డేటా ఎంట్రీ స్టార్ట్ అవుతుంది...")
-        for idx, row in df.iterrows():
-            print(f"[{idx+1}/{len(df)}] Submitting S.No {row.get('S.No', idx+1)}...")
-        print("డేటా ఎంట్రీ పూర్తయింది.")
-    else:
-        print(f"ఫైల్ దొరకలేదు: {file_path}")
-
-    input("\nముగించడానికి Enter ప్రెస్ చేయండి...")
-
-def main():
-    try:
-        # If user explicitly passed --cli or if running in headless terminal with args
-        if "--cli" in sys.argv:
-            launch_cli()
-        else:
-            try:
-                launch_gui()
-            except Exception as gui_err:
-                # If Tkinter fails (e.g. headless Linux container), fallback cleanly to CLI
-                launch_cli()
-    except Exception as e:
-        import traceback
-        err_msg = traceback.format_exc()
-        try:
-            import tkinter.messagebox as mb
-            mb.showerror("e-Vedhika Bot Error", f"ఎర్రర్ సంభవించింది:\n{e}\n\n{err_msg}")
-        except Exception:
-            print(f"\nFatal Error:\n{err_msg}")
-            try:
-                input("\nముగించడానికి Enter ప్రెస్ చేయండి...")
-            except Exception:
-                pass
-
 if __name__ == "__main__":
-    main()
+    try:
+        main_gui()
+    except Exception as e:
+        show_fatal_error(traceback.format_exc())

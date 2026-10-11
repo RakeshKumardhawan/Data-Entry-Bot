@@ -71,7 +71,7 @@ jobs:
     const batContent = `@echo off
 title e-Vedhika Data Entry Bot - Automated EXE Builder
 echo Building Protected Windows EXE (e-Vedhika.Data.entry_bot.exe)...
-pip install pyinstaller pandas openpyxl selenium --quiet
+pip install pyinstaller pandas openpyxl requests pyautogui keyboard --quiet
 pyinstaller --onefile --name "e-Vedhika.Data.entry_bot" scripts/data_entry_bot_core.py
 echo EXE build finished in dist\\e-Vedhika.Data.entry_bot.exe!
 pause`;

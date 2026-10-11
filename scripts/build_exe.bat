@@ -13,8 +13,8 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo Installing PyInstaller and dependencies...
-pip install pyinstaller pandas openpyxl selenium --quiet
+echo Installing PyInstaller and dependencies (pandas, openpyxl, requests, pyautogui, keyboard)...
+pip install pyinstaller pandas openpyxl requests pyautogui keyboard --quiet
 
 echo.
 echo Building Standalone Protected Executable...
