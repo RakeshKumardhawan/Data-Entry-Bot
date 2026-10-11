@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, CheckCircle2, AlertCircle, Terminal, Laptop, ExternalLink, RefreshCw, X, ShieldCheck } from 'lucide-react';
+import { Play, Pause, Square, CheckCircle2, AlertCircle, Terminal, Laptop, ExternalLink, RefreshCw, X, ShieldCheck, Download } from 'lucide-react';
 import { DataRecord, PortalType, BotLog } from '../types';
 
 interface BotExecutionModalProps {
@@ -241,6 +241,35 @@ export const BotExecutionModal: React.FC<BotExecutionModalProps> = ({
                 <span>{isPaused ? 'Resume' : 'Pause'}</span>
               </button>
             ) : null}
+          </div>
+        </div>
+
+        {/* Live Automation vs Web Preview Notice */}
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2 text-amber-950 font-medium">
+            <span className="px-1.5 py-0.5 rounded bg-amber-200 text-amber-900 font-bold shrink-0 text-2xs uppercase">ముఖ్య గమనిక</span>
+            <span>
+              ఇది వెబ్ సిమ్యులేషన్ (డెమో ప్రివ్యూ). మీ కంప్యూటర్‌లోని అసలైన ప్రభుత్వ TMP పోర్టల్‌లో లైవ్‌గా ఆటోమేటిక్ టైపింగ్ జరగడానికి డెస్క్‌టాప్ బాట్‌ను వాడండి.
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <a
+              href="/run_bot.bat"
+              download="run_bot.bat"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-2xs transition-colors shadow-2xs"
+              title="Windows లో 1-క్లిక్‌తో బాట్ రన్ చేయండి"
+            >
+              <Download className="w-3 h-3" />
+              <span>1-క్లిక్ బాట్ (.bat)</span>
+            </a>
+            <a
+              href="/entry_bot.py"
+              download="entry_bot.py"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-2xs transition-colors"
+              title="Python స్క్రిప్ట్ డౌన్‌లోడ్ చేసుకోండి"
+            >
+              <span>Python Bot (.py)</span>
+            </a>
           </div>
         </div>
 

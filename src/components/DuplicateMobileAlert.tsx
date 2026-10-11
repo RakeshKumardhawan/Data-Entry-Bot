@@ -116,11 +116,11 @@ export const DuplicateMobileAlert: React.FC<DuplicateMobileAlertProps> = ({
           <button
             type="button"
             onClick={onAutoFixDuplicates}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-xs font-medium cursor-pointer transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs cursor-pointer transition-all shadow-sm ring-2 ring-indigo-500/20 active:scale-95"
             title="Auto-generates sequential alternate placeholder numbers for duplicates"
           >
-            <Wand2 className="w-3.5 h-3.5" />
-            <span>Auto-Fix Numbers</span>
+            <Wand2 className="w-4 h-4 animate-pulse" />
+            <span>🪄 Auto-Fix Duplicates (ఆటోమేటిక్‌గా సరిచేయండి)</span>
           </button>
 
           <button

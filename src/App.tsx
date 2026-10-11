@@ -15,10 +15,10 @@ import { DuplicateMobileAlert } from './components/DuplicateMobileAlert';
 import { DataPreviewTable } from './components/DataPreviewTable';
 import { DataRecord, PortalType, SelectedModule, UserProfile } from './types';
 import { INITIAL_AKKALAPALLI_DATA } from './utils/sampleData';
-import { findDuplicateMobiles, exportToExcel } from './utils/excelParser';
+import { findDuplicateMobiles, exportToExcel, getCleanMobile } from './utils/excelParser';
 import { getActiveUser, setActiveUserSession, getStoredUsers } from './utils/authStorage';
 import { checkDomainPolicy } from './utils/domainPolicyStorage';
-import { Play, Monitor, Layers, ArrowLeft, ShieldAlert, Sparkles, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Play, Monitor, Layers, ArrowLeft, ShieldAlert, Sparkles, CheckCircle2, ShieldCheck, X, Download, Keyboard, Terminal } from 'lucide-react';
 
 export function App() {
   // Navigation & Module State
@@ -36,6 +36,21 @@ export function App() {
   const [fileName, setFileName] = useState<string | null>('Akkalapalli.xlsx');
   const [records, setRecords] = useState<DataRecord[]>(INITIAL_AKKALAPALLI_DATA);
   const [hasConfirmedProceed, setHasConfirmedProceed] = useState<boolean>(false);
+
+  // Toast notifications for user actions
+  const [toastNotification, setToastNotification] = useState<{
+    type: 'success' | 'warning' | 'info';
+    title: string;
+    message: string;
+  } | null>(null);
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (toastNotification) {
+      const timer = setTimeout(() => setToastNotification(null), 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastNotification]);
 
   // Tool Modals
   const [isExecutionModalOpen, setIsExecutionModalOpen] = useState<boolean>(false);
@@ -96,31 +111,81 @@ export function App() {
     setRecords(updated);
   };
 
-  // Auto-fix duplicates & automatically download the cleaned Excel file
+  // Auto-fix single row duplicate mobile
+  const handleAutoFixSingleRecord = (index: number) => {
+    const record = records[index];
+    if (!record) return;
+
+    // Collect all existing mobiles
+    const allMobiles = new Set<string>();
+    records.forEach(r => {
+      const m = getCleanMobile(r);
+      if (m && m.length === 10) allMobiles.add(m);
+    });
+
+    const mob = getCleanMobile(record);
+    let newMobile = '';
+    let attempt = index + 11;
+    do {
+      const prefix = mob.length >= 8 ? mob.slice(0, 8) : '98765432';
+      const suffix = String(attempt).padStart(2, '0').slice(-2);
+      newMobile = prefix + suffix;
+      attempt++;
+    } while (allMobiles.has(newMobile));
+
+    const updatedRecord: DataRecord = {
+      ...record,
+      'Mobile': newMobile,
+      'Mobile No.': newMobile,
+      'Mobile No': newMobile,
+      'Mobile Number': newMobile,
+      'Phone': newMobile,
+    };
+    Object.keys(updatedRecord).forEach(k => {
+      const cleanK = k.toLowerCase().replace(/[\s_.]/g, '');
+      if (['mobile', 'mobilenumber', 'mobileno', 'phone', 'phonenumber', 'cell', 'contact', 'మొబైల్', 'ఫోన్'].some(alias => cleanK.includes(alias))) {
+        (updatedRecord as any)[k] = newMobile;
+      }
+    });
+
+    const updatedRecords = [...records];
+    updatedRecords[index] = updatedRecord;
+    setRecords(updatedRecords);
+
+    setToastNotification({
+      type: 'success',
+      title: '✓ నంబర్ సరిచేయబడింది!',
+      message: `${record['Name'] || 'ట్రైనీ'} మొబైల్ నంబర్ "${newMobile}" గా ప్రత్యేకంగా అప్‌డేట్ చేయబడింది.`
+    });
+  };
+
+  // Auto-fix ALL duplicates & automatically download the cleaned Excel file
   const handleAutoFixDuplicates = () => {
     const seen = new Set<string>();
     let fixCount = 0;
     
-    // First collect all mobile numbers in dataset
+    // First collect all existing mobile numbers across the entire dataset
     const allMobiles = new Set<string>();
     records.forEach(r => {
-      const m = String(r['Mobile'] || '').trim().replace(/\D/g, '').slice(-10);
-      if (m) allMobiles.add(m);
+      const m = getCleanMobile(r);
+      if (m && m.length === 10) allMobiles.add(m);
     });
 
     const updated = records.map((record, index) => {
-      const mob = String(record['Mobile'] || '').trim().replace(/\D/g, '').slice(-10);
+      const mob = getCleanMobile(record);
+      // If mobile is not present or not yet seen, mark as seen and keep it
       if (!mob || !seen.has(mob)) {
         if (mob) seen.add(mob);
         return record;
       }
 
-      // Generate a unique 10-digit number that definitely does not exist anywhere in dataset
+      // Generate a guaranteed unique 10-digit number that definitely does not exist in dataset
       let newMobile = '';
-      let attempt = index + 10;
+      let attempt = index + 11;
       do {
+        const prefix = mob.length >= 8 ? mob.slice(0, 8) : '98765432';
         const suffix = String(attempt).padStart(2, '0').slice(-2);
-        newMobile = (mob.length >= 8 ? mob.slice(0, 8) : '98765432') + suffix;
+        newMobile = prefix + suffix;
         attempt++;
       } while (allMobiles.has(newMobile) || seen.has(newMobile));
 
@@ -128,16 +193,23 @@ export function App() {
       allMobiles.add(newMobile);
       fixCount++;
 
-      // Update all variations of mobile key in record
+      // Update ALL variations of mobile key in record
       const updatedRecord: DataRecord = {
         ...record,
         'Mobile': newMobile,
+        'Mobile No.': newMobile,
+        'Mobile No': newMobile,
+        'Mobile Number': newMobile,
+        'Phone': newMobile,
       };
-      ['Mobile No', 'Mobile Number', 'Phone', 'Phone Number', 'Phone No', 'mobileno', 'mobile'].forEach(k => {
-        if (k in updatedRecord) {
+
+      Object.keys(updatedRecord).forEach(k => {
+        const cleanK = k.toLowerCase().replace(/[\s_.]/g, '');
+        if (['mobile', 'mobilenumber', 'mobileno', 'phone', 'phonenumber', 'cell', 'contact', 'మొబైల్', 'ఫోన్'].some(alias => cleanK.includes(alias))) {
           (updatedRecord as any)[k] = newMobile;
         }
       });
+
       return updatedRecord;
     });
 
@@ -148,7 +220,11 @@ export function App() {
     const outFilename = `${gpName ? gpName.trim() : 'TMP_Trainees'}_Fixed_Unique_Mobiles.xlsx`;
     exportToExcel(updated, outFilename);
 
-    alert(`✓ విజయవంతంగా ${fixCount} డూప్లికేట్ మొబైల్ నంబర్లు సరిచేయబడ్డాయి!\n\nసరిచేసిన కొత్త ఎక్సెల్ ఫైల్ ("${outFilename}") ఆటోమేటిక్‌గా మీ కంప్యూటర్‌లోకి డౌన్‌లోడ్ చేయబడింది.\n\nముఖ్య గమనిక: మీ స్క్రీన్‌షాట్‌లో కనిపించే విధంగా TMP పోర్టల్ డేటాబేస్‌లో ముందే రిజిస్టర్ అయి ఉన్న పాత ట్రైనీల కోసం, పోర్టల్ టేబుల్‌లో 'Select [✓]' బాక్స్ టిక్ చేసి Save నొక్కండి.`);
+    setToastNotification({
+      type: 'success',
+      title: '✓ విజయవంతంగా ఆటో-ఫిక్స్ పూర్తయింది!',
+      message: `${fixCount} డూప్లికేట్ మొబైల్ నంబర్లకు ప్రత్యేకమైన (Unique) నంబర్లు ఇవ్వబడ్డాయి. సరిచేసిన కొత్త ఎక్సెల్ ఫైల్ ("${outFilename}") మీ కంప్యూటర్‌లోకి ఆటోమేటిక్‌గా డౌన్‌లోడ్ చేయబడింది.`
+    });
   };
 
   // Launch Bot Execution with User Access Control
@@ -234,6 +310,36 @@ export function App() {
 
       {/* Main App Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pb-16 space-y-6">
+        {/* Floating Toast Notification Banner */}
+        {toastNotification && (
+          <div
+            className={`rounded-xl p-4 flex items-start justify-between gap-3 shadow-md animate-in slide-in-from-top-2 duration-300 border ${
+              toastNotification.type === 'success'
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
+                : toastNotification.type === 'warning'
+                ? 'bg-amber-50 border-amber-300 text-amber-950'
+                : 'bg-blue-50 border-blue-300 text-blue-950'
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 p-1 rounded-full bg-emerald-600 text-white shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-900">{toastNotification.title}</h4>
+                <p className="text-xs text-slate-700 mt-0.5 leading-relaxed">{toastNotification.message}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setToastNotification(null)}
+              className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* 3. Center Module Selection Card (Matching Screenshot) */}
         <ModuleSelectorCard
           selectedModule={selectedModule}
@@ -266,6 +372,16 @@ export function App() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                <a
+                  href="/run_bot.bat"
+                  download="run_bot.bat"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 transition-colors shadow-2xs"
+                  title="Windows లో లైవ్ ఆటోమేషన్ కోసం 1-క్లిక్ బాట్ ఫైల్ డౌన్‌లోడ్ చేసుకోండి"
+                >
+                  <Download className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>డెస్క్‌టాప్ బాట్ (.bat)</span>
+                </a>
+
                 <button
                   type="button"
                   onClick={() => setIsDomainPolicyModalOpen(true)}
@@ -273,7 +389,7 @@ export function App() {
                   title="డొమైన్ ఆటోమేషన్ నిబంధనల సమీక్ష & అనుమతి"
                 >
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>పాలసీ వెరిఫైడ్ (portal.grampanchayat.gov.in)</span>
+                  <span>పాలసీ వెరిఫైడ్</span>
                 </button>
 
                 <button
@@ -286,8 +402,47 @@ export function App() {
                   }`}
                 >
                   <Play className="w-4 h-4 fill-current" />
-                  <span>Start Data Entry Bot (ఎంట్రీ స్టార్ట్ చేయండి)</span>
+                  <span>Start Entry Bot (సిమ్యులేషన్ రన్)</span>
                 </button>
+              </div>
+            </div>
+
+            {/* Quick Live Automation F8 Guide Banner */}
+            <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-slate-50 border border-blue-200/80 rounded-2xl p-4 shadow-2xs">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="p-1 rounded bg-blue-600 text-white">
+                      <Keyboard className="w-4 h-4" />
+                    </span>
+                    <h4 className="text-xs font-bold text-blue-950 uppercase tracking-wide">
+                      లైవ్ ప్రభుత్వ పోర్టల్‌లో ఆటోమేటిక్ టైపింగ్ ఎలా పనిచేస్తుంది? (Zero Manual Typing Guide)
+                    </h4>
+                  </div>
+                  <p className="text-xs text-slate-700 leading-relaxed">
+                    బ్రౌజర్ సెక్యూరిటీ నిబంధనల ప్రకారం, వెబ్‌సైట్ నేరుగా మీ విండోస్ కీబోర్డ్‌ను కంట్రోల్ చేయలేదు. 
+                    మీరు లాగిన్ అయిన ప్రభుత్వ TMP పోర్టల్‌లో నిజంగా ఆటోమేటిక్‌గా టైప్ అవ్వడానికి: 
+                    <strong> 1. డెస్క్‌టాప్ బాట్ రన్ చేయండి ➔ 2. పోర్టల్‌లో 'Name' బాక్స్‌పై క్లిక్ చేయండి ➔ 3. కీబోర్డ్‌పై F8 నొక్కండి!</strong>
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href="/run_bot.bat"
+                    download="run_bot.bat"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>డెస్క్‌టాప్ బాట్ రన్ చేయండి</span>
+                  </a>
+                  <a
+                    href="/entry_bot.py"
+                    download="entry_bot.py"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors"
+                  >
+                    <span>Python Code (.py)</span>
+                  </a>
+                </div>
               </div>
             </div>
 
@@ -323,6 +478,8 @@ export function App() {
               onUpdateRecord={handleUpdateRecord}
               onDeleteRecord={handleDeleteRecord}
               onAddRecord={handleAddRecord}
+              onAutoFixAllDuplicates={handleAutoFixDuplicates}
+              onAutoFixSingleRecord={handleAutoFixSingleRecord}
             />
           </div>
         )}

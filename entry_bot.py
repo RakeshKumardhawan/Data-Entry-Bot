@@ -222,8 +222,21 @@ def auto_fix_duplicate_mobiles(df, col_name, file_path):
             new_mobiles.append(unique_mob)
             
     df[col] = new_mobiles
-    df.to_excel(file_path, index=False)
-    return df
+    # Update ALL mobile columns in df
+    for c in df.columns:
+        c_clean = str(c).lower().replace(' ', '').replace('.', '').replace('_', '')
+        if any(alias in c_clean for alias in ['mobile', 'phone', 'cell', 'contact', 'మొబైల్', 'ఫోన్']):
+            df[c] = new_mobiles
+
+    saved_path = file_path
+    try:
+        df.to_excel(file_path, index=False)
+    except Exception:
+        # File might be open in Excel, save as _Fixed
+        base, ext = os.path.splitext(file_path)
+        saved_path = f"{base}_Unique_Fixed{ext}"
+        df.to_excel(saved_path, index=False)
+    return df, saved_path
 
 def check_for_updates(parent=None):
     try:
@@ -592,8 +605,12 @@ def main_gui():
                 f"మొత్తం {len(dupes)} డూప్లికేట్ మొబైల్ నంబర్ల చివర రెండు అంకెలను మార్చి ప్రతి ఒక్కరికీ ప్రత్యేకమైన (Unique) నంబర్ ఇచ్చి ఫైల్‌ను అప్‌డేట్ చేయాలా?",
                 parent=root
             ):
-                auto_fix_duplicate_mobiles(df, col_name, f)
-                messagebox.showinfo("విజయవంతమైంది", f"✓ డూప్లికేట్ మొబైల్ నంబర్లు విజయవంతంగా సరిచేయబడ్డాయి!\nఇప్పుడు పోర్టల్ లో ఎలాంటి ఎర్రర్ రాదు.", parent=root)
+                df_updated, final_path = auto_fix_duplicate_mobiles(df, col_name, f)
+                msg_txt = "✓ డూప్లికేట్ మొబైల్ నంబర్లు విజయవంతంగా సరిచేయబడ్డాయి!\nఇప్పుడు పోర్టల్ లో ఎలాంటి ఎర్రర్ రాదు."
+                if final_path != f:
+                    msg_txt += f"\n\nగమనిక: అసలు ఫైల్ ఓపెన్ అయి ఉన్నందున కొత్త ఫైల్ ({os.path.basename(final_path)}) గా సేవ్ చేయబడింది."
+                    selected_file.set(final_path)
+                messagebox.showinfo("విజయవంతమైంది", msg_txt, parent=root)
                 scan_file_for_duplicates()
         except Exception as err:
             messagebox.showerror("Error", f"ఆటో-ఫిక్స్ లోపం: {err}", parent=root)

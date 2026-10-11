@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Search, Plus, Trash2, Edit2, AlertCircle, CheckCircle, FileSpreadsheet } from 'lucide-react';
+import { Search, Plus, Trash2, Edit2, AlertCircle, CheckCircle, FileSpreadsheet, Wand2, Sparkles, Check } from 'lucide-react';
 import { DataRecord } from '../types';
+import { getCleanMobile } from '../utils/excelParser';
 
 interface DataPreviewTableProps {
   data: DataRecord[];
@@ -8,6 +9,8 @@ interface DataPreviewTableProps {
   onUpdateRecord: (index: number, updated: DataRecord) => void;
   onDeleteRecord: (index: number) => void;
   onAddRecord: () => void;
+  onAutoFixAllDuplicates?: () => void;
+  onAutoFixSingleRecord?: (index: number) => void;
   disabled?: boolean;
 }
 
@@ -17,6 +20,8 @@ export const DataPreviewTable: React.FC<DataPreviewTableProps> = ({
   onUpdateRecord,
   onDeleteRecord,
   onAddRecord,
+  onAutoFixAllDuplicates,
+  onAutoFixSingleRecord,
   disabled = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -25,15 +30,15 @@ export const DataPreviewTable: React.FC<DataPreviewTableProps> = ({
   const [editMobileValue, setEditMobileValue] = useState('');
 
   const filteredData = data.filter((row) => {
-    const mobile = String(row['Mobile'] || '');
+    const mobile = getCleanMobile(row);
     const isDup = duplicateMobiles.has(mobile);
     if (onlyShowDuplicates && !isDup) return false;
 
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase();
     const name = String(row['Name'] || '').toLowerCase();
-    const sNo = String(row['S.No'] || '').toLowerCase();
-    const ward = String(row['Ward'] || '').toLowerCase();
+    const sNo = String(row['SL No'] || row['S.No'] || '').toLowerCase();
+    const ward = String(row['Ward'] || row['Designation'] || '').toLowerCase();
     return name.includes(term) || mobile.includes(term) || sNo.includes(term) || ward.includes(term);
   });
 
@@ -44,10 +49,21 @@ export const DataPreviewTable: React.FC<DataPreviewTableProps> = ({
 
   const saveEditMobile = (idx: number) => {
     if (editingIndex === null) return;
+    const cleanNum = editMobileValue.trim().replace(/\D/g, '').slice(-10);
     const updated = {
       ...data[idx],
-      'Mobile': editMobileValue.trim().replace(/\D/g, '').slice(-10)
+      'Mobile': cleanNum,
+      'Mobile No.': cleanNum,
+      'Mobile No': cleanNum,
+      'Mobile Number': cleanNum,
+      'Phone': cleanNum,
     };
+    Object.keys(updated).forEach(k => {
+      const cleanK = k.toLowerCase().replace(/[\s_.]/g, '');
+      if (['mobile', 'mobilenumber', 'mobileno', 'phone', 'phonenumber', 'cell', 'contact', 'మొబైల్', 'ఫోన్'].some(alias => cleanK.includes(alias))) {
+        (updated as any)[k] = cleanNum;
+      }
+    });
     onUpdateRecord(idx, updated);
     setEditingIndex(null);
   };
@@ -81,6 +97,18 @@ export const DataPreviewTable: React.FC<DataPreviewTableProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {duplicateMobiles.size > 0 && onAutoFixAllDuplicates && (
+            <button
+              type="button"
+              onClick={onAutoFixAllDuplicates}
+              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-all cursor-pointer shadow-xs"
+              title="Automatically fix all duplicate phone numbers in this table"
+            >
+              <Wand2 className="w-3.5 h-3.5" />
+              <span>Auto-Fix Duplicates ({duplicateMobiles.size})</span>
+            </button>
+          )}
+
           {duplicateMobiles.size > 0 && (
             <button
               type="button"
@@ -114,7 +142,7 @@ export const DataPreviewTable: React.FC<DataPreviewTableProps> = ({
             <tr>
               <th className="py-2.5 px-3 w-16 text-center">S.No</th>
               <th className="py-2.5 px-3 min-w-44">Name / పేరు</th>
-              <th className="py-2.5 px-3 min-w-36">Mobile Number</th>
+              <th className="py-2.5 px-3 min-w-40">Mobile Number</th>
               {hasDesignation && <th className="py-2.5 px-3 min-w-32">Designation / హోదా</th>}
               {hasGender && <th className="py-2.5 px-3 min-w-24">Gender</th>}
               {hasCategory && <th className="py-2.5 px-3 min-w-24">Category</th>}
@@ -134,7 +162,9 @@ export const DataPreviewTable: React.FC<DataPreviewTableProps> = ({
             ) : (
               filteredData.map((row) => {
                 const originalIndex = data.indexOf(row);
-                const isDup = duplicateMobiles.has(String(row['Mobile'] || '').trim());
+                const cleanMob = getCleanMobile(row);
+                const displayMob = row['Mobile'] || row['Mobile No.'] || row['Mobile No'] || cleanMob || '';
+                const isDup = duplicateMobiles.has(cleanMob);
                 const isEditing = editingIndex === originalIndex;
 
                 return (
@@ -170,23 +200,34 @@ export const DataPreviewTable: React.FC<DataPreviewTableProps> = ({
                           </button>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span
                             className={`font-mono font-medium ${
                               isDup ? 'text-amber-800 font-bold bg-amber-100 px-1.5 py-0.5 rounded' : 'text-slate-800'
                             }`}
                           >
-                            {row['Mobile']}
+                            {displayMob}
                           </span>
                           {isDup && (
                             <span className="text-2xs text-amber-700 font-semibold bg-amber-200/70 px-1 py-0.2 rounded">
                               Duplicate
                             </span>
                           )}
+                          {isDup && onAutoFixSingleRecord && (
+                            <button
+                              type="button"
+                              onClick={() => onAutoFixSingleRecord(originalIndex)}
+                              className="inline-flex items-center gap-0.5 text-2xs px-1.5 py-0.5 rounded bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-bold cursor-pointer transition-colors"
+                              title="Generate unique number for this row"
+                            >
+                              <Sparkles className="w-2.5 h-2.5" />
+                              <span>Fix</span>
+                            </button>
+                          )}
                           <button
                             type="button"
-                            onClick={() => startEditMobile(originalIndex, String(row['Mobile'] || ''))}
-                            className="text-slate-400 hover:text-blue-600 cursor-pointer"
+                            onClick={() => startEditMobile(originalIndex, displayMob)}
+                            className="text-slate-400 hover:text-blue-600 cursor-pointer p-0.5"
                             title="Edit mobile number"
                           >
                             <Edit2 className="w-3 h-3" />

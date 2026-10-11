@@ -220,12 +220,31 @@ export const exportToExcel = (data: DataRecord[], filename: string) => {
   XLSX.writeFile(workbook, filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`);
 };
 
+export const getCleanMobile = (row: DataRecord): string => {
+  let raw = '';
+  if (row['Mobile No.']) raw = String(row['Mobile No.']);
+  else if (row['Mobile']) raw = String(row['Mobile']);
+  else if (row['Mobile No']) raw = String(row['Mobile No']);
+  else if (row['Mobile Number']) raw = String(row['Mobile Number']);
+  else if (row['Phone']) raw = String(row['Phone']);
+  else {
+    for (const [k, v] of Object.entries(row)) {
+      const cleanK = k.toLowerCase().replace(/[\s_.]/g, '');
+      if (['mobile', 'mobilenumber', 'mobileno', 'phone', 'phonenumber', 'cell', 'contact', 'మొబైల్', 'ఫోన్'].some(a => cleanK.includes(a))) {
+        raw = String(v);
+        break;
+      }
+    }
+  }
+  return raw.trim().replace(/\.0$/, '').replace(/\D/g, '').slice(-10);
+};
+
 export const findDuplicateMobiles = (data: DataRecord[]): DuplicateGroup[] => {
   const mobileMap = new Map<string, DataRecord[]>();
 
   data.forEach((row) => {
-    const mobile = String(row['Mobile'] || '').trim();
-    if (!mobile) return;
+    const mobile = getCleanMobile(row);
+    if (!mobile || mobile.length !== 10) return;
 
     if (!mobileMap.has(mobile)) {
       mobileMap.set(mobile, []);
