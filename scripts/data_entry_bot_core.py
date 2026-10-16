@@ -261,44 +261,47 @@ def check_for_updates(parent=None):
     except Exception:
         pass
 
-def run_f8_control_panel(df, gp_name):
-    # Initial instruction popup
-    root_init = tk.Tk()
-    root_init.withdraw() 
-    root_init.attributes('-topmost', True) 
-    
-    messagebox.showinfo(
-        "Automation Ready", 
-        f"Automation Ready for {gp_name}!\n\n1. Open Chrome and keep the first 'Name' box ready.\n2. Press 'F8' on your keyboard for each record entry.\n\nగమనిక: పోర్టల్‌లో 'Kindly check Trainee details' వస్తే, కింద టేబుల్‌లోని 'Select [✓]' బాక్స్ టిక్ చేసి 'Save' నొక్కండి.\n\n-- Developed by e-vedhika.in admin Rakesh Dhavan --", 
-        parent=root_init
-    )
-    root_init.destroy()
+def run_f8_control_panel(df, gp_name, auto_start_direct=False):
+    if not auto_start_direct:
+        # Initial instruction popup
+        root_init = tk.Tk()
+        root_init.withdraw() 
+        root_init.attributes('-topmost', True) 
+        
+        messagebox.showinfo(
+            "Automation Ready", 
+            f"Automation Ready for {gp_name}!\n\n1. Open Chrome and keep the first 'Name' box ready.\n2. '⚡ 1-Click Full Auto' నొక్కితే బాట్ స్వయంగా మొత్తం ఎంట్రీ పూర్తి చేస్తుంది (నో మాన్యువల్ F8)!\n\n-- Developed by e-vedhika.in admin Rakesh Dhavan --", 
+            parent=root_init
+        )
+        root_init.destroy()
 
     # Control Panel Window
     control_win = tk.Tk()
-    control_win.title("E-Vedhika - Automation Control Panel")
-    control_win.geometry("340x300")
+    control_win.title("E-Vedhika - 1-Click Automation Panel")
+    control_win.geometry("360x360")
     control_win.attributes('-topmost', True)
     control_win.config(bg="#f8fafc")
     
     title_frame = tk.Frame(control_win, bg="#0c3875", height=45)
     title_frame.pack(fill=tk.X)
     
-    tk.Label(title_frame, text="E-Vedhika Automation Panel", font=("Arial", 10, "bold"), bg="#0c3875", fg="#ffffff").pack(pady=4)
+    tk.Label(title_frame, text="E-Vedhika 1-Click Automation Panel", font=("Arial", 10, "bold"), bg="#0c3875", fg="#ffffff").pack(pady=4)
     tk.Label(title_frame, text=f"GP: {gp_name} ({len(df)} Records)", font=("Arial", 8), bg="#0c3875", fg="#fbe947").pack(pady=(0, 4))
 
-    status_label = tk.Label(control_win, text="Status: Ready. Press F8", font=("Arial", 9, "bold"), bg="#f8fafc", fg="#2563eb")
-    status_label.pack(pady=8)
+    status_label = tk.Label(control_win, text="Status: Ready", font=("Arial", 9, "bold"), bg="#f8fafc", fg="#2563eb")
+    status_label.pack(pady=6)
 
     is_paused = [False]
     current_index = [0]
     is_running = [True]
+    is_auto_pilot = [False]
 
     def reset_to_first():
         current_index[0] = 0
         is_paused[0] = False
+        is_auto_pilot[0] = False
         update_ui_status()
-        messagebox.showinfo("రీసెట్ పూర్తయింది", "రికార్డ్ 1 కి రీసెట్ చేయబడింది (Reset to Record 1)!\n\nఇప్పుడు Chrome లోని 'Name' బాక్స్ పై క్లిక్ చేసి F8 నొక్కండి.", parent=control_win)
+        messagebox.showinfo("రీసెట్ పూర్తయింది", "రికార్డ్ 1 కి రీసెట్ చేయబడింది (Reset to Record 1)!\n\nఇప్పుడు Chrome లోని 'Name' బాక్స్ పై క్లిక్ చేయండి.", parent=control_win)
 
     def prev_record():
         if current_index[0] > 0:
@@ -309,47 +312,96 @@ def run_f8_control_panel(df, gp_name):
         if current_index[0] < len(df):
             row = df.iloc[current_index[0]]
             name = str(row.iloc[1]) if len(row) > 1 else str(row.get('Name', ''))
-            status_label.config(text=f"Record {current_index[0] + 1}/{len(df)} Ready: {name[:16]}", fg="#2563eb")
+            status_label.config(text=f"Record {current_index[0] + 1}/{len(df)}: {name[:16]}", fg="#2563eb")
 
-    def start_action():
+    def trigger_one_click_auto():
         is_paused[0] = False
-        update_ui_status()
+        is_auto_pilot[0] = True
+        
+        def countdown(secs):
+            if not is_running[0] or not is_auto_pilot[0]:
+                return
+            if secs > 0:
+                status_label.config(text=f"⚡ Auto Starting in {secs}s... (Click 'Name' now!)", fg="#ea580c")
+                control_win.after(1000, lambda: countdown(secs - 1))
+            else:
+                status_label.config(text="⚡ RUNNING 1-CLICK FULL AUTO", fg="#16a34a")
+                auto_step()
+
+        countdown(3)
+
+    def auto_step():
+        if not is_running[0] or is_paused[0] or not is_auto_pilot[0]:
+            return
+        
+        if current_index[0] < len(df):
+            process_entry()
+            current_index[0] += 1
+            update_ui_status()
+            
+            if current_index[0] < len(df):
+                control_win.after(1100, auto_step)
+            else:
+                is_auto_pilot[0] = False
+                status_label.config(text="🎉 All Completed Successfully!", fg="#16a34a")
+                messagebox.showinfo("Done", "డేటా ఎంట్రీ 100% పూర్తయింది!\nAll records entered automatically with zero manual work.", parent=control_win)
+                control_win.destroy()
+
+    def start_manual_f8():
+        is_paused[0] = False
+        is_auto_pilot[0] = False
+        status_label.config(text="Status: Ready. Press F8", fg="#2563eb")
 
     def pause_action():
         is_paused[0] = True
+        is_auto_pilot[0] = False
         status_label.config(text="Status: Paused", fg="#d97706")
 
     def resume_action():
         is_paused[0] = False
-        status_label.config(text="Status: Resumed (Press F8)", fg="#16a34a")
+        if is_auto_pilot[0]:
+            auto_step()
+        else:
+            status_label.config(text="Status: Resumed (F8 Ready)", fg="#16a34a")
 
     def cancel_action():
         is_running[0] = False
+        is_auto_pilot[0] = False
         status_label.config(text="Status: Cancelled", fg="#dc2626")
         control_win.destroy()
 
-    btn_start = tk.Button(control_win, text="Start Entry (F8 Ready)", bg="#16a34a", fg="white", font=("Arial", 9, "bold"), width=24, command=start_action, relief=tk.FLAT)
+    btn_one_click = tk.Button(
+        control_win, 
+        text="⚡ 1-CLICK FULL AUTO (No F8 Needed)", 
+        bg="#059669", 
+        fg="white", 
+        font=("Arial", 10, "bold"), 
+        width=28, 
+        command=trigger_one_click_auto, 
+        relief=tk.FLAT,
+        cursor="hand2"
+    )
+    btn_one_click.pack(pady=4)
+
+    btn_start = tk.Button(control_win, text="Single Step Entry (F8 Mode)", bg="#3b82f6", fg="white", font=("Arial", 9), width=28, command=start_manual_f8, relief=tk.FLAT)
     btn_start.pack(pady=2)
 
     btn_nav_frame = tk.Frame(control_win, bg="#f8fafc")
     btn_nav_frame.pack(pady=2)
 
-    btn_reset = tk.Button(btn_nav_frame, text="⏮ Reset to 1", bg="#475569", fg="white", font=("Arial", 8, "bold"), width=11, command=reset_to_first, relief=tk.FLAT)
+    btn_reset = tk.Button(btn_nav_frame, text="⏮ Reset to 1", bg="#475569", fg="white", font=("Arial", 8, "bold"), width=12, command=reset_to_first, relief=tk.FLAT)
     btn_reset.pack(side=tk.LEFT, padx=2)
 
-    btn_prev = tk.Button(btn_nav_frame, text="◀ Previous", bg="#0284c7", fg="white", font=("Arial", 8, "bold"), width=11, command=prev_record, relief=tk.FLAT)
+    btn_prev = tk.Button(btn_nav_frame, text="◀ Previous", bg="#0284c7", fg="white", font=("Arial", 8, "bold"), width=12, command=prev_record, relief=tk.FLAT)
     btn_prev.pack(side=tk.LEFT, padx=2)
 
-    btn_pause = tk.Button(control_win, text="Pause", bg="#f59e0b", fg="white", font=("Arial", 9, "bold"), width=24, command=pause_action, relief=tk.FLAT)
+    btn_pause = tk.Button(control_win, text="Pause / తాత్కాలికంగా ఆపు", bg="#f59e0b", fg="white", font=("Arial", 9, "bold"), width=28, command=pause_action, relief=tk.FLAT)
     btn_pause.pack(pady=2)
 
-    btn_resume = tk.Button(control_win, text="Resume", bg="#0ea5e9", fg="white", font=("Arial", 9, "bold"), width=24, command=resume_action, relief=tk.FLAT)
-    btn_resume.pack(pady=2)
-
-    btn_cancel = tk.Button(control_win, text="Stop / Cancel", bg="#dc2626", fg="white", font=("Arial", 9, "bold"), width=24, command=cancel_action, relief=tk.FLAT)
+    btn_cancel = tk.Button(control_win, text="Stop / రద్దు చేయి", bg="#dc2626", fg="white", font=("Arial", 9, "bold"), width=28, command=cancel_action, relief=tk.FLAT)
     btn_cancel.pack(pady=2)
 
-    tip_label = tk.Label(control_win, text="⚠️ F8 నొక్కే ముందు Chrome 'Name' పై క్లిక్ చేయండి!", font=("Arial", 7, "bold"), bg="#fef3c7", fg="#92400e", wraplength=320)
+    tip_label = tk.Label(control_win, text="⚡ '1-CLICK FULL AUTO' క్లిక్ చేసి Chrome 'Name' పై ఒక్కసారి క్లిక్ చేయండి!", font=("Arial", 7, "bold"), bg="#ecfdf5", fg="#065f46", wraplength=340)
     tip_label.pack(fill=tk.X, padx=8, pady=(4, 2))
 
     def process_entry():
@@ -437,20 +489,26 @@ def run_f8_control_panel(df, gp_name):
                 control_win.destroy()
                 return
 
-        control_win.after(200, check_f8)
-
-    def check_f8():
+    def check_keys():
         if not is_running[0]:
             return
         try:
-            if keyboard.is_pressed('f8'):
+            if keyboard.is_pressed('escape'):
+                pause_action()
+            elif keyboard.is_pressed('f8') and not is_auto_pilot[0]:
                 process_entry()
-            else:
-                control_win.after(100, check_f8)
+                current_index[0] += 1
+                update_ui_status()
+                time.sleep(0.3)
         except Exception:
-            control_win.after(100, check_f8)
+            pass
+        control_win.after(100, check_keys)
 
-    control_win.after(100, check_f8)
+    if auto_start_direct:
+        control_win.after(300, trigger_one_click_auto)
+    else:
+        control_win.after(100, check_keys)
+
     control_win.mainloop()
 
 def main_gui():
@@ -621,6 +679,25 @@ def main_gui():
         except Exception as err:
             messagebox.showerror("Error", f"ఆటో-ఫిక్స్ లోపం: {err}", parent=root)
 
+    def on_one_click_full_auto():
+        f = selected_file.get().strip()
+        if not f or not os.path.exists(f):
+            messagebox.showerror("Error", "దయచేసి సరైన ఎక్సెల్ ఫైల్‌ను ఎంచుకోండి.", parent=root)
+            return
+        try:
+            df = load_excel_smart(f)
+            has_dupes, dupes, col_name = check_duplicate_mobiles(df)
+            if has_dupes:
+                df, final_path = auto_fix_duplicate_mobiles(df, col_name, f)
+                selected_file.set(final_path)
+            
+            gp_name = os.path.basename(f).split('.')[0]
+            root.withdraw()
+            run_f8_control_panel(df, gp_name, auto_start_direct=True)
+            root.deiconify()
+        except Exception as err:
+            messagebox.showerror("Error", f"వన్-క్లిక్ ఆటోమేషన్ లోపం: {err}", parent=root)
+
     def on_start_automation():
         f = selected_file.get().strip()
         if not f or not os.path.exists(f):
@@ -644,39 +721,53 @@ def main_gui():
         except Exception as err:
             messagebox.showerror("Error", f"డేటా ఎంట్రీ ప్రారంభించడంలో లోపం: {err}", parent=root)
 
+    btn_one_click_master = tk.Button(
+        btn_frame,
+        text="⚡ 1-CLICK FULL AUTO ENTRY (నో మాన్యువల్ - ఫుల్ ఆటోమేటిక్)",
+        command=on_one_click_full_auto,
+        bg="#059669",
+        fg="#ffffff",
+        font=("Helvetica", 10, "bold"),
+        padx=12,
+        pady=8,
+        relief=tk.FLAT,
+        cursor="hand2"
+    )
+    btn_one_click_master.pack(side=tk.LEFT, padx=(0, 8))
+
     btn_check = tk.Button(
         btn_frame, 
-        text="డూప్లికేట్ మొబైల్స్ తనిఖీ", 
+        text="డూప్లికేట్ మొబైల్స్", 
         command=on_check_duplicates, 
         bg="#0284c7", 
         fg="#ffffff", 
         font=("Helvetica", 9, "bold"), 
-        padx=10, 
+        padx=8, 
         pady=8,
         relief=tk.FLAT
     )
-    btn_check.pack(side=tk.LEFT, padx=(0, 8))
+    btn_check.pack(side=tk.LEFT, padx=(0, 6))
 
     btn_autofix = tk.Button(
         btn_frame, 
-        text="🪄 ఆటో-ఫిక్స్ (సరిచేయండి)", 
+        text="🪄 ఆటో-ఫిక్స్", 
         command=on_autofix, 
         bg="#d97706", 
         fg="#ffffff", 
         font=("Helvetica", 9, "bold"), 
-        padx=10, 
+        padx=8, 
         pady=8,
         relief=tk.FLAT
     )
 
     btn_start = tk.Button(
         btn_frame, 
-        text="▶ Start Automation (F8)", 
+        text="▶ F8 Mode", 
         command=on_start_automation, 
-        bg="#16a34a", 
+        bg="#475569", 
         fg="#ffffff", 
         font=("Helvetica", 9, "bold"), 
-        padx=12, 
+        padx=8, 
         pady=8,
         relief=tk.FLAT
     )
