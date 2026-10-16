@@ -23,7 +23,7 @@ export const BotExecutionModal: React.FC<BotExecutionModalProps> = ({
   records,
   onComplete,
   mode = 'auto',
-  typingSpeed = 400,
+  typingSpeed = 800,
   onSpeedChange,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);

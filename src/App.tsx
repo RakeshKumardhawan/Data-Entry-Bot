@@ -55,7 +55,7 @@ export function App() {
   // Tool Modals
   const [isExecutionModalOpen, setIsExecutionModalOpen] = useState<boolean>(false);
   const [botExecutionMode, setBotExecutionMode] = useState<'auto' | 'f8'>('auto');
-  const [typingSpeed, setTypingSpeed] = useState<number>(400); // 100ms to 2000ms
+  const [typingSpeed, setTypingSpeed] = useState<number>(800); // Stable default (800ms)
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState<boolean>(false);
   const [isExeModalOpen, setIsExeModalOpen] = useState<boolean>(false);
   const [isCheckingUpdates, setIsCheckingUpdates] = useState<boolean>(false);
